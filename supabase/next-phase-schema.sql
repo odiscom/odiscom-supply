@@ -17,6 +17,7 @@ create table if not exists products (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
   sku text unique,
+  slug text unique,
   category text,
   manufacturer text,
   description text,
@@ -29,6 +30,8 @@ create table if not exists products (
   spec_sheet_url text,
   created_at timestamp with time zone default now()
 );
+
+alter table products add column if not exists slug text unique;
 
 create table if not exists customers (
   id uuid primary key default uuid_generate_v4(),
@@ -68,6 +71,32 @@ create table if not exists material_uploads (
 
 create index if not exists products_category_idx on products (category);
 create index if not exists products_sku_idx on products (sku);
+create index if not exists products_slug_idx on products (slug);
 create index if not exists customers_email_idx on customers (email);
 create index if not exists suppliers_name_idx on suppliers (name);
 create index if not exists material_uploads_status_idx on material_uploads (status);
+
+alter table products enable row level security;
+alter table suppliers enable row level security;
+alter table customers enable row level security;
+alter table material_uploads enable row level security;
+
+drop policy if exists "Allow public product read" on products;
+create policy "Allow public product read" on products for select using (status = 'active');
+
+drop policy if exists "Allow authenticated product management" on products;
+create policy "Allow authenticated product management" on products for all to authenticated using (true) with check (true);
+
+drop policy if exists "Allow authenticated supplier access" on suppliers;
+create policy "Allow authenticated supplier access" on suppliers for all to authenticated using (true) with check (true);
+
+drop policy if exists "Allow authenticated customer access" on customers;
+create policy "Allow authenticated customer access" on customers for all to authenticated using (true) with check (true);
+
+drop policy if exists "Allow public material upload insert" on material_uploads;
+create policy "Allow public material upload insert" on material_uploads for insert with check (true);
+
+drop policy if exists "Allow authenticated material upload access" on material_uploads;
+create policy "Allow authenticated material upload access" on material_uploads for all to authenticated using (true) with check (true);
+
+notify pgrst, 'reload schema';
