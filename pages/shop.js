@@ -4,6 +4,7 @@ import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { supabase } from '../lib/supabase'
 import { broadbandCatalog } from '../data/broadbandCatalog'
+import { expandCatalogItem } from '../data/catalogOptions'
 
 function slugify(value) {
   return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -15,17 +16,19 @@ function productHref(product) {
 }
 
 function catalogProductsFromStaticList() {
-  return broadbandCatalog.flatMap((group) => group.items.map((name) => ({
-    id: `catalog-${slugify(group.category)}-${slugify(name)}`,
-    name,
-    sku: 'Catalog request',
-    slug: slugify(name),
+  return broadbandCatalog.flatMap((group) => group.items.flatMap((name) => expandCatalogItem(group.category, name).map((expanded) => ({
+    id: `catalog-${slugify(group.category)}-${slugify(expanded.name)}`,
+    name: expanded.name,
+    sku: expanded.length ? expanded.length : 'Catalog request',
+    slug: slugify(expanded.name),
     category: group.category,
     manufacturer: 'Odiscom Supply Sourcing',
-    description: 'Catalog request item. Select this material through the quote request workflow for project pricing, lead time, freight, and availability.',
+    description: expanded.lengthLabel || 'Catalog request item. Select this material through the quote request workflow for project pricing, lead time, freight, and availability.',
+    unit: expanded.unit,
+    length: expanded.length,
     status: 'active',
     catalogOnly: true,
-  })))
+  }))))
 }
 
 export default function Shop() {
@@ -64,7 +67,7 @@ export default function Shop() {
 
   const filteredProducts = products.filter((product) => {
     const query = search.toLowerCase()
-    const matchesSearch = !query || [product.name, product.sku, product.manufacturer, product.description, product.category].join(' ').toLowerCase().includes(query)
+    const matchesSearch = !query || [product.name, product.sku, product.manufacturer, product.description, product.category, product.length].join(' ').toLowerCase().includes(query)
     const matchesCategory = category === 'all' || product.category === category
     return matchesSearch && matchesCategory
   })
@@ -82,7 +85,7 @@ export default function Shop() {
             <div className="max-w-4xl">
               <div className="mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Full Telecom Supply Catalog</div>
               <h1 className="text-4xl font-bold leading-tight md:text-5xl">Browse fiber, OSP, wireless, tower, conduit, handhole, and construction materials</h1>
-              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">The shop now includes the full request catalog plus live Supabase products. Public pricing stays hidden; Odiscom Supply quotes each request by project, quantity, lead time, freight, and availability.</p>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">Fiber cable listings are shown in common reel, spool, and assembly lengths. Public pricing stays hidden; Odiscom Supply quotes each request by project, quantity, lead time, freight, and availability.</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/quote" className="rounded-xl bg-blue-600 px-6 py-3 text-center font-semibold text-white hover:bg-blue-700">Start Quote Request</Link>
                 <Link href="/material-upload" className="rounded-xl bg-white px-6 py-3 text-center font-semibold text-slate-950 hover:bg-slate-100">Upload BOM</Link>
@@ -94,7 +97,7 @@ export default function Shop() {
         <section className="-mt-8 relative z-10 mx-auto max-w-7xl px-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg">
             <div className="grid gap-3 lg:grid-cols-[1fr_280px_220px]">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiber count, conduit size, handhole size, connector type, tower mount, grounding..." className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiber count, reel length, conduit size, handhole size, connector type..." className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white" />
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white">
                 <option value="all">All categories</option>
                 {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
@@ -116,7 +119,7 @@ export default function Shop() {
           <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-2xl font-bold text-slate-950">Catalog Products</h2>
-              <p className="text-sm text-slate-600">{filteredProducts.length} items shown · {databaseProducts.length} live database products · {staticProducts.length} request catalog items</p>
+              <p className="text-sm text-slate-600">{filteredProducts.length} items shown · {databaseProducts.length} live database products · {staticProducts.length} request catalog items including cable lengths</p>
             </div>
           </div>
 
@@ -137,6 +140,7 @@ export default function Shop() {
                     <div className="p-6">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{product.manufacturer || 'Project Sourcing'}</div>
                       <h2 className="text-xl font-bold text-slate-950">{product.name}</h2>
+                      {product.length && <div className="mt-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">Sold as {product.length}</div>}
                       <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{product.description || 'Request pricing, lead time, quantity breaks, and availability from Odiscom Supply.'}</p>
                       <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-sm">
                         <span className="font-mono text-xs text-slate-500">{product.sku || 'No SKU'}</span>
