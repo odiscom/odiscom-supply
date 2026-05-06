@@ -9,11 +9,9 @@ alter table quotes add column if not exists source text default 'website';
 
 alter table quote_items add column if not exists unit_cost numeric default 0;
 alter table quote_items add column if not exists supplier_name text;
-alter table quote_items add column if not exists margin numeric generated always as (total_price - (quantity * unit_cost)) stored;
 
 alter table order_items add column if not exists unit_cost numeric default 0;
 alter table order_items add column if not exists supplier_name text;
-alter table order_items add column if not exists margin numeric generated always as (total_price - (quantity * unit_cost)) stored;
 
 create table if not exists products (
   id uuid primary key default uuid_generate_v4(),
