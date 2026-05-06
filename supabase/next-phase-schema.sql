@@ -7,6 +7,14 @@ alter table quotes add column if not exists assigned_to text;
 alter table quotes add column if not exists priority text default 'normal';
 alter table quotes add column if not exists source text default 'website';
 
+alter table quote_items add column if not exists unit_cost numeric default 0;
+alter table quote_items add column if not exists supplier_name text;
+alter table quote_items add column if not exists margin numeric generated always as (total_price - (quantity * unit_cost)) stored;
+
+alter table order_items add column if not exists unit_cost numeric default 0;
+alter table order_items add column if not exists supplier_name text;
+alter table order_items add column if not exists margin numeric generated always as (total_price - (quantity * unit_cost)) stored;
+
 create table if not exists products (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
@@ -42,6 +50,9 @@ create table if not exists suppliers (
   email text,
   phone text,
   website text,
+  product_categories text,
+  payment_terms text,
+  lead_time text,
   notes text,
   created_at timestamp with time zone default now()
 );
@@ -60,4 +71,5 @@ create table if not exists material_uploads (
 create index if not exists products_category_idx on products (category);
 create index if not exists products_sku_idx on products (sku);
 create index if not exists customers_email_idx on customers (email);
+create index if not exists suppliers_name_idx on suppliers (name);
 create index if not exists material_uploads_status_idx on material_uploads (status);
