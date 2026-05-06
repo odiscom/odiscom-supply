@@ -4,8 +4,8 @@ import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { supabase } from '../lib/supabase'
 
-function money(value) {
-  return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+function productHref(product) {
+  return `/product/${encodeURIComponent(product.slug || product.id)}`
 }
 
 export default function Shop() {
@@ -51,7 +51,7 @@ export default function Shop() {
             <div className="max-w-4xl">
               <div className="mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Live Supply Catalog</div>
               <h1 className="text-4xl font-bold leading-tight md:text-5xl">Browse telecom infrastructure materials and request project pricing</h1>
-              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">Search active products, SKUs, manufacturers, and categories. Public pricing may be hidden or indicative only; final project pricing is handled through the quote workflow.</p>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">Search active products, SKUs, manufacturers, and categories. Odiscom Supply does not show public pricing online; final pricing is quoted by project, quantity, lead time, freight, and availability.</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/quote" className="rounded-xl bg-blue-600 px-6 py-3 text-center font-semibold text-white hover:bg-blue-700">Start Quote Request</Link>
                 <Link href="/material-upload" className="rounded-xl bg-white px-6 py-3 text-center font-semibold text-slate-950 hover:bg-slate-100">Upload BOM</Link>
@@ -70,8 +70,8 @@ export default function Shop() {
               </select>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => setCategory('all')} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>All</button>
-              {categories.slice(0, 10).map((cat) => <button key={cat} onClick={() => setCategory(cat)} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{cat}</button>)}
+              <button type="button" onClick={() => setCategory('all')} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>All</button>
+              {categories.slice(0, 10).map((cat) => <button type="button" key={cat} onClick={() => setCategory(cat)} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{cat}</button>)}
             </div>
           </div>
         </section>
@@ -91,7 +91,7 @@ export default function Shop() {
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.map((product) => (
-                <Link key={product.id} href={`/product/${product.slug || product.id}`}>
+                <Link key={product.id} href={productHref(product)}>
                   <article className="group h-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl">
                     <div className="relative h-44 overflow-hidden bg-gradient-to-br from-slate-100 to-blue-50">
                       {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-lg font-bold text-slate-300">Odiscom Supply</div>}
@@ -103,7 +103,7 @@ export default function Shop() {
                       <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{product.description || 'Request pricing, lead time, quantity breaks, and availability from Odiscom Supply.'}</p>
                       <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-sm">
                         <span className="font-mono text-xs text-slate-500">{product.sku || 'No SKU'}</span>
-                        <span className="font-bold text-slate-950">{Number(product.price || 0) > 0 ? money(product.price) : 'Request Quote'}</span>
+                        <span className="font-bold text-slate-950">Request Quote</span>
                       </div>
                       <div className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white transition group-hover:bg-blue-600">View Product</div>
                     </div>
