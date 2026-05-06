@@ -31,14 +31,33 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null)
   const [items, setItems] = useState([])
   const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => { if (id) loadOrder() }, [id])
 
   async function loadOrder() {
-    const { data: orderData } = await supabase.from('orders').select('*').eq('id', id).single()
+    setLoading(true)
+    setNotFound(false)
+
+    if (id === '[order-id]' || id === 'order-id') {
+      setNotFound(true)
+      setLoading(false)
+      return
+    }
+
+    const { data: orderData, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle()
+
+    if (error || !orderData) {
+      setNotFound(true)
+      setLoading(false)
+      return
+    }
+
     const { data: itemsData } = await supabase.from('order_items').select('*').eq('order_id', id).order('created_at', { ascending: true })
     setOrder(orderData)
     setItems(itemsData || [])
+    setLoading(false)
   }
 
   async function updateStatus(newStatus) {
@@ -48,7 +67,23 @@ export default function OrderDetail() {
     setMessage('Order status updated.')
   }
 
-  if (!order) return <AdminShell title="Order Detail"><div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">Loading order...</div></AdminShell>
+  if (loading) return <AdminShell title="Order Detail"><div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">Loading order...</div></AdminShell>
+
+  if (notFound || !order) {
+    return (
+      <AdminShell title="Order Not Found">
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 shadow-sm">
+          <h2 className="text-2xl font-bold text-slate-950">Order not found</h2>
+          <p className="mt-3 max-w-2xl text-slate-600">
+            This page needs a real order ID from the Orders table. The placeholder URL /admin/orders/[order-id] will not load an order.
+          </p>
+          <button onClick={() => router.push('/admin/orders')} className="mt-6 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700">
+            Go to Orders
+          </button>
+        </div>
+      </AdminShell>
+    )
+  }
 
   const sellTotal = Number(order.total || items.reduce((sum, item) => sum + Number(item.total_price || 0), 0))
   const costTotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
