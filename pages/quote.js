@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { broadbandCatalog } from '../data/broadbandCatalog'
+import { expandCatalogGroups } from '../data/catalogOptions'
 
 function ProductRow({ category, item, quantity, onChange }) {
   function update(next) {
@@ -9,12 +10,22 @@ function ProductRow({ category, item, quantity, onChange }) {
     onChange(value)
   }
 
+  const name = typeof item === 'string' ? item : item.name
+  const unit = typeof item === 'string' ? 'each' : item.unit || 'each'
+  const length = typeof item === 'string' ? '' : item.length || ''
+  const lengthLabel = typeof item === 'string' ? '' : item.lengthLabel || ''
+
   return (
     <div className="group rounded-xl border border-slate-200 bg-white px-4 py-4 transition hover:border-blue-300 hover:shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-slate-900">{item}</div>
-          <div className="mt-1 text-xs text-slate-500">{category}</div>
+          <div className="text-sm font-semibold text-slate-900">{name}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{category}</span>
+            {length && <span className="rounded-full bg-blue-50 px-2 py-1 font-bold text-blue-700">Sold as {length}</span>}
+            <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-600">Unit: {unit}</span>
+          </div>
+          {lengthLabel && <div className="mt-2 text-xs leading-5 text-slate-500">{lengthLabel}</div>}
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => update((quantity || 0) - 1)} className="h-9 w-9 rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50">-</button>
@@ -35,15 +46,19 @@ export default function QuotePage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const expandedCatalog = useMemo(() => expandCatalogGroups(broadbandCatalog), [])
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
-  function updateItem(category, name, quantity) {
+  function updateItem(category, item, quantity) {
+    const name = typeof item === 'string' ? item : item.name
+    const unit = typeof item === 'string' ? 'each' : item.unit || 'each'
+    const length = typeof item === 'string' ? '' : item.length || ''
     const key = `${category}::${name}`
     const qty = Number(quantity || 0)
     const nextItems = { ...selectedItems }
 
     if (qty > 0) {
-      nextItems[key] = { category, product_name: name, quantity: qty, unit: 'each' }
+      nextItems[key] = { category, product_name: name, quantity: qty, unit, length }
     } else {
       delete nextItems[key]
     }
@@ -53,12 +68,12 @@ export default function QuotePage() {
 
   const filteredCatalog = useMemo(() => {
     const query = search.toLowerCase().trim()
-    if (!query) return broadbandCatalog
+    if (!query) return expandedCatalog
 
-    return broadbandCatalog
-      .map((group) => ({ ...group, items: group.items.filter((item) => `${group.category} ${item}`.toLowerCase().includes(query)) }))
+    return expandedCatalog
+      .map((group) => ({ ...group, items: group.items.filter((item) => `${group.category} ${item.name} ${item.length || ''}`.toLowerCase().includes(query)) }))
       .filter((group) => group.items.length > 0)
-  }, [search])
+  }, [search, expandedCatalog])
 
   const selectedList = useMemo(() => Object.values(selectedItems).sort((a, b) => a.category === b.category ? a.product_name.localeCompare(b.product_name) : a.category.localeCompare(b.category)), [selectedItems])
   const totalUnits = selectedList.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
@@ -98,7 +113,7 @@ export default function QuotePage() {
             <div className="max-w-4xl">
               <div className="mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Odiscom Supply • B2B Telecom Sourcing</div>
               <h1 className="max-w-4xl text-4xl font-bold leading-tight md:text-5xl">Request a project quote for fiber, wireless, tower, OSP, and construction supply materials</h1>
-              <p className="mt-5 max-w-3xl text-base leading-7 text-slate-200 md:text-lg">Select the materials you need, enter quantities, and submit your request. We do not show public pricing online — every request is reviewed for contractor pricing, project volume, lead time, freight, and availability.</p>
+              <p className="mt-5 max-w-3xl text-base leading-7 text-slate-200 md:text-lg">Fiber cable items include standard reel, spool, and assembly lengths. Select materials, enter quantities, and submit your request. We quote by project volume, lead time, freight, and availability.</p>
               <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {['Fiber Broadband Materials', 'Cell Tower & Wireless Hardware', 'Splicing, Testing & Tools', 'Trailers, Reel Handling & OSP'].map((item) => (
                   <div key={item} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm text-slate-100 backdrop-blur">{item}</div>
@@ -111,7 +126,7 @@ export default function QuotePage() {
         <section className="-mt-8 relative z-10 mx-auto max-w-7xl px-6">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm font-semibold text-slate-900">Contractor-focused quoting</div><p className="mt-2 text-sm text-slate-600">Built for broadband builds, tower upgrades, OSP construction, and telecom infrastructure sourcing.</p></div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm font-semibold text-slate-900">Bulk & project pricing</div><p className="mt-2 text-sm text-slate-600">We review quantities, alternates, freight, and timelines before issuing pricing.</p></div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm font-semibold text-slate-900">Standard cable lengths</div><p className="mt-2 text-sm text-slate-600">Fiber cable is listed by common reel, spool, and pre-terminated assembly lengths.</p></div>
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm font-semibold text-slate-900">Fiber + wireless + tools</div><p className="mt-2 text-sm text-slate-600">Source everything from cable and connectors to splicers, grounding kits, and deployment trailers.</p></div>
           </div>
         </section>
@@ -134,7 +149,7 @@ export default function QuotePage() {
                       <div><h2 className="text-2xl font-bold text-slate-900">Select materials</h2><p className="mt-1 text-sm text-slate-600">Search the catalog and enter quantities. Leave pricing to us.</p></div>
                       <div className="inline-flex items-center rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">{selectedList.length} items selected • {totalUnits} total units</div>
                     </div>
-                    <div className="mt-5"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiber cable, conduit, splice closures, tower mounts, grounding kits, trailers..." className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white" /></div>
+                    <div className="mt-5"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiber count, reel length, conduit, splice closures, tower mounts, grounding kits..." className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white" /></div>
                   </div>
                   <div className="max-h-[950px] overflow-y-auto px-6 py-6">
                     <div className="space-y-8">
@@ -143,7 +158,7 @@ export default function QuotePage() {
                           <div className="mb-4 flex items-center justify-between"><div><h3 className="text-lg font-bold text-slate-900">{group.category}</h3><p className="text-xs uppercase tracking-[0.18em] text-slate-500">Telecom construction catalog</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{group.items.length} items</span></div>
                           <div className="grid gap-3">
                             {group.items.map((item) => {
-                              const key = `${group.category}::${item}`
+                              const key = `${group.category}::${item.name}`
                               return <ProductRow key={key} category={group.category} item={item} quantity={selectedItems[key]?.quantity || 0} onChange={(qty) => updateItem(group.category, item, qty)} />
                             })}
                           </div>
@@ -176,7 +191,7 @@ export default function QuotePage() {
                   <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
                     <div className="border-b border-slate-200 px-6 py-5"><h2 className="text-xl font-bold text-slate-900">Quote summary</h2><p className="mt-1 text-sm text-slate-600">Review your selected materials before submitting.</p></div>
                     <div className="px-6 py-6">
-                      {selectedList.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-500">No items selected yet. Add quantities from the catalog on the left.</div> : <><div className="mb-4 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-slate-50 px-4 py-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Line Items</div><div className="mt-1 text-2xl font-bold text-slate-900">{selectedList.length}</div></div><div className="rounded-2xl bg-slate-50 px-4 py-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total Units</div><div className="mt-1 text-2xl font-bold text-slate-900">{totalUnits}</div></div></div><div className="max-h-80 space-y-3 overflow-y-auto pr-1">{selectedList.map((item) => <div key={`${item.category}-${item.product_name}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-slate-900">{item.product_name}</div><div className="mt-1 text-xs text-slate-500">{item.category}</div></div><div className="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Qty {item.quantity}</div></div></div>)}</div></>}
+                      {selectedList.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-500">No items selected yet. Add quantities from the catalog on the left.</div> : <><div className="mb-4 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-slate-50 px-4 py-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Line Items</div><div className="mt-1 text-2xl font-bold text-slate-900">{selectedList.length}</div></div><div className="rounded-2xl bg-slate-50 px-4 py-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Total Units</div><div className="mt-1 text-2xl font-bold text-slate-900">{totalUnits}</div></div></div><div className="max-h-80 space-y-3 overflow-y-auto pr-1">{selectedList.map((item) => <div key={`${item.category}-${item.product_name}`} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-slate-900">{item.product_name}</div><div className="mt-1 text-xs text-slate-500">{item.category}</div>{item.length && <div className="mt-1 text-xs font-bold text-blue-700">Sold as {item.length}</div>}</div><div className="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Qty {item.quantity}</div></div></div>)}</div></>}
                     </div>
                   </div>
 
