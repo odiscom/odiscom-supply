@@ -13,10 +13,13 @@ export default function QuoteDetail() {
   const { id } = router.query
   const [quote, setQuote] = useState(null)
   const [items, setItems] = useState([])
+  const [suppliers, setSuppliers] = useState([])
   const [notes, setNotes] = useState('')
   const [selectedProduct, setSelectedProduct] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [unitPrice, setUnitPrice] = useState(0)
+  const [unitCost, setUnitCost] = useState(0)
+  const [supplierName, setSupplierName] = useState('')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -26,8 +29,10 @@ export default function QuoteDetail() {
   async function loadData() {
     const { data: quoteData } = await supabase.from('quotes').select('*').eq('id', id).single()
     const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id).order('created_at', { ascending: true })
+    const { data: supplierData } = await supabase.from('suppliers').select('*').order('name', { ascending: true })
     setQuote(quoteData)
     setItems(itemsData || [])
+    setSuppliers(supplierData || [])
     setNotes(quoteData?.internal_notes || '')
   }
 
@@ -42,6 +47,8 @@ export default function QuoteDetail() {
         product_name: product.name,
         quantity,
         unit_price: unitPrice,
+        unit_cost: unitCost,
+        supplier_name: supplierName,
       },
     ]).select()
 
@@ -76,11 +83,21 @@ export default function QuoteDetail() {
   }
 
   const total = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
+  const totalCost = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
+  const totalMargin = total - totalCost
+  const marginPercent = total > 0 ? (totalMargin / total) * 100 : 0
 
   return (
     <AdminShell title={`Quote ${quote.quote_id}`}>
       <div className="space-y-6">
         {message && <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 text-sm">{message}</div>}
+
+        <div className="grid md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Sell Total</div><div className="text-2xl font-bold">{money(total)}</div></div>
+          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Estimated Cost</div><div className="text-2xl font-bold">{money(totalCost)}</div></div>
+          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Gross Margin</div><div className="text-2xl font-bold text-green-700">{money(totalMargin)}</div></div>
+          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Margin %</div><div className="text-2xl font-bold text-green-700">{marginPercent.toFixed(1)}%</div></div>
+        </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white rounded-xl shadow border p-6">
@@ -111,23 +128,32 @@ export default function QuoteDetail() {
         <div className="bg-white rounded-xl shadow border p-6">
           <div className="flex flex-wrap justify-between gap-3 items-center mb-4">
             <h2 className="text-xl font-bold">Line Items</h2>
-            <div className="text-xl font-bold text-slate-900">{money(total)}</div>
+            <div className="text-right"><div className="text-xl font-bold text-slate-900">{money(total)}</div><div className="text-sm text-green-700 font-semibold">Margin: {money(totalMargin)}</div></div>
           </div>
-          <div className="grid md:grid-cols-4 gap-3 mb-5">
+          <div className="grid md:grid-cols-6 gap-3 mb-5">
             <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="md:col-span-2 border rounded-lg p-3">
               <option value="">Select Product</option>
               {products.map((product) => <option key={product.slug} value={product.slug}>{product.name}</option>)}
             </select>
             <input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className="border rounded-lg p-3" placeholder="Qty" />
-            <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(Number(e.target.value))} className="border rounded-lg p-3" placeholder="Unit price" />
+            <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(Number(e.target.value))} className="border rounded-lg p-3" placeholder="Sell" />
+            <input type="number" value={unitCost} onChange={(e) => setUnitCost(Number(e.target.value))} className="border rounded-lg p-3" placeholder="Cost" />
+            <select value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="border rounded-lg p-3">
+              <option value="">Supplier</option>
+              {suppliers.map((supplier) => <option key={supplier.id} value={supplier.name}>{supplier.name}</option>)}
+            </select>
           </div>
           <button onClick={addItem} className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-5 py-3 font-semibold mb-5">Add Line Item</button>
           <div className="overflow-x-auto border rounded-xl">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-100"><tr><th className="text-left p-3">Product</th><th className="text-right p-3">Qty</th><th className="text-right p-3">Unit Price</th><th className="text-right p-3">Total</th></tr></thead>
+              <thead className="bg-gray-100"><tr><th className="text-left p-3">Product</th><th className="text-left p-3">Supplier</th><th className="text-right p-3">Qty</th><th className="text-right p-3">Sell</th><th className="text-right p-3">Cost</th><th className="text-right p-3">Margin</th><th className="text-right p-3">Total</th></tr></thead>
               <tbody>
-                {items.length === 0 && <tr><td colSpan="4" className="text-center p-6 text-gray-500">No quote items yet.</td></tr>}
-                {items.map((item) => <tr key={item.id} className="border-t"><td className="p-3 font-semibold">{item.product_name}</td><td className="p-3 text-right">{item.quantity}</td><td className="p-3 text-right">{money(item.unit_price)}</td><td className="p-3 text-right font-bold">{money(item.total_price)}</td></tr>)}
+                {items.length === 0 && <tr><td colSpan="7" className="text-center p-6 text-gray-500">No quote items yet.</td></tr>}
+                {items.map((item) => {
+                  const lineCost = Number(item.quantity || 0) * Number(item.unit_cost || 0)
+                  const lineMargin = Number(item.total_price || 0) - lineCost
+                  return <tr key={item.id} className="border-t"><td className="p-3 font-semibold">{item.product_name}</td><td className="p-3">{item.supplier_name || '-'}</td><td className="p-3 text-right">{item.quantity}</td><td className="p-3 text-right">{money(item.unit_price)}</td><td className="p-3 text-right">{money(item.unit_cost)}</td><td className="p-3 text-right font-bold text-green-700">{money(lineMargin)}</td><td className="p-3 text-right font-bold">{money(item.total_price)}</td></tr>
+                })}
               </tbody>
             </table>
           </div>
