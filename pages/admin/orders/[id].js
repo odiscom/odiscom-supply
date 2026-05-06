@@ -7,6 +7,24 @@ function money(value) {
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function Badge({ children, tone = 'blue' }) {
+  const tones = {
+    blue: 'bg-blue-50 text-blue-700',
+    green: 'bg-green-50 text-green-700',
+    amber: 'bg-amber-50 text-amber-700',
+    red: 'bg-red-50 text-red-700',
+    slate: 'bg-slate-100 text-slate-700',
+  }
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tones[tone] || tones.blue}`}>{children}</span>
+}
+
+function statusTone(status) {
+  if (status === 'completed' || status === 'shipped') return 'green'
+  if (status === 'on_hold') return 'red'
+  if (status === 'new') return 'amber'
+  return 'blue'
+}
+
 export default function OrderDetail() {
   const router = useRouter()
   const { id } = router.query
@@ -30,11 +48,9 @@ export default function OrderDetail() {
     setMessage('Order status updated.')
   }
 
-  if (!order) {
-    return <AdminShell title="Order Detail"><div className="bg-white rounded-xl shadow p-8 text-gray-600">Loading order...</div></AdminShell>
-  }
+  if (!order) return <AdminShell title="Order Detail"><div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">Loading order...</div></AdminShell>
 
-  const sellTotal = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
+  const sellTotal = Number(order.total || items.reduce((sum, item) => sum + Number(item.total_price || 0), 0))
   const costTotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
   const marginTotal = sellTotal - costTotal
   const marginPercent = sellTotal > 0 ? (marginTotal / sellTotal) * 100 : 0
@@ -42,65 +58,83 @@ export default function OrderDetail() {
   return (
     <AdminShell title={order.order_number}>
       <div className="space-y-6">
-        {message && <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 text-sm">{message}</div>}
+        {message && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">{message}</div>}
 
-        <div className="grid md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Order Total</div><div className="text-2xl font-bold">{money(order.total || sellTotal)}</div></div>
-          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Estimated Cost</div><div className="text-2xl font-bold">{money(costTotal)}</div></div>
-          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Gross Margin</div><div className="text-2xl font-bold text-green-700">{money(marginTotal)}</div></div>
-          <div className="bg-white rounded-xl shadow border p-5"><div className="text-sm text-gray-500">Margin %</div><div className="text-2xl font-bold text-green-700">{marginPercent.toFixed(1)}%</div></div>
+        <div className="rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-8 text-white shadow-sm">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <button onClick={() => router.push('/admin/orders')} className="mb-4 text-sm font-semibold text-blue-200">← Back to orders</button>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Fulfillment Workspace</div>
+              <h2 className="text-3xl font-bold">{order.company}</h2>
+              <p className="mt-2 text-slate-300">{order.contact_name} · {order.email} · {order.phone || 'No phone'}</p>
+              <div className="mt-4"><Badge tone={statusTone(order.status)}>{order.status}</Badge></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[620px]">
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Order Total</div><div className="mt-1 text-xl font-bold">{money(sellTotal)}</div></div>
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Estimated Cost</div><div className="mt-1 text-xl font-bold">{money(costTotal)}</div></div>
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Gross Margin</div><div className="mt-1 text-xl font-bold text-green-300">{money(marginTotal)}</div></div>
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin %</div><div className="mt-1 text-xl font-bold text-green-300">{marginPercent.toFixed(1)}%</div></div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow border">
-            <h2 className="text-xl font-bold mb-4">Customer</h2>
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div><span className="text-gray-500">Company</span><div className="font-semibold">{order.company}</div></div>
-              <div><span className="text-gray-500">Contact</span><div className="font-semibold">{order.contact_name}</div></div>
-              <div><span className="text-gray-500">Email</span><div className="font-semibold">{order.email}</div></div>
-              <div><span className="text-gray-500">Phone</span><div className="font-semibold">{order.phone || '-'}</div></div>
+        <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-bold text-slate-950">Customer & Order Details</h2>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Company</div><div className="mt-2 font-semibold text-slate-950">{order.company}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Contact</div><div className="mt-2 font-semibold text-slate-950">{order.contact_name}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Email</div><div className="mt-2 font-semibold text-slate-950">{order.email}</div></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Phone</div><div className="mt-2 font-semibold text-slate-950">{order.phone || '-'}</div></div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 px-6 py-5"><h2 className="text-xl font-bold text-slate-950">Order Items</h2><p className="mt-1 text-sm text-slate-600">Supplier, cost, sell, and margin detail for fulfillment.</p></div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-600"><tr><th className="p-4 text-left">Product</th><th className="p-4 text-left">Supplier</th><th className="p-4 text-right">Qty</th><th className="p-4 text-right">Sell</th><th className="p-4 text-right">Cost</th><th className="p-4 text-right">Margin</th><th className="p-4 text-right">Line Total</th></tr></thead>
+                  <tbody>
+                    {items.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-slate-500">No order items.</td></tr>}
+                    {items.map((item) => {
+                      const lineCost = Number(item.quantity || 0) * Number(item.unit_cost || 0)
+                      const lineTotal = Number(item.total_price || 0)
+                      const lineMargin = lineTotal - lineCost
+                      return <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4">{item.supplier_name || '-'}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(item.unit_price)}</td><td className="p-4 text-right">{money(item.unit_cost)}</td><td className="p-4 text-right font-bold text-green-700">{money(lineMargin)}</td><td className="p-4 text-right font-bold">{money(lineTotal)}</td></tr>
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow border">
-            <h2 className="text-xl font-bold mb-4">Fulfillment Status</h2>
-            <select value={order.status} onChange={(e) => updateStatus(e.target.value)} className="w-full border p-3 rounded-lg">
-              <option value="new">New</option>
-              <option value="processing">Processing</option>
-              <option value="ordered">Ordered from Vendor</option>
-              <option value="received">Received</option>
-              <option value="shipped">Shipped</option>
-              <option value="completed">Completed</option>
-              <option value="on_hold">On Hold</option>
-            </select>
-          </div>
-        </div>
+          <aside className="space-y-6">
+            <div className="sticky top-24 space-y-6">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-bold text-slate-950">Fulfillment Status</h2>
+                <p className="mt-2 text-sm text-slate-600">Update order progress as materials are sourced, received, shipped, or completed.</p>
+                <select value={order.status} onChange={(e) => updateStatus(e.target.value)} className="mt-5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm">
+                  <option value="new">New</option>
+                  <option value="processing">Processing</option>
+                  <option value="ordered">Ordered from Vendor</option>
+                  <option value="received">Received</option>
+                  <option value="shipped">Shipped</option>
+                  <option value="completed">Completed</option>
+                  <option value="on_hold">On Hold</option>
+                </select>
+              </div>
 
-        <div className="bg-white p-6 rounded-xl shadow border">
-          <h2 className="text-xl font-bold mb-4">Order Items</h2>
-          <div className="overflow-x-auto border rounded-xl">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-100"><tr><th className="text-left p-3">Product</th><th className="text-left p-3">Supplier</th><th className="text-right p-3">Qty</th><th className="text-right p-3">Sell</th><th className="text-right p-3">Cost</th><th className="text-right p-3">Margin</th><th className="text-right p-3">Line Total</th></tr></thead>
-              <tbody>
-                {items.length === 0 && <tr><td colSpan="7" className="p-6 text-center text-gray-500">No order items.</td></tr>}
-                {items.map((item) => {
-                  const lineCost = Number(item.quantity || 0) * Number(item.unit_cost || 0)
-                  const lineMargin = Number(item.total_price || 0) - lineCost
-                  return (
-                    <tr key={item.id} className="border-t">
-                      <td className="p-3 font-semibold">{item.product_name}</td>
-                      <td className="p-3">{item.supplier_name || '-'}</td>
-                      <td className="p-3 text-right">{item.quantity}</td>
-                      <td className="p-3 text-right">{money(item.unit_price)}</td>
-                      <td className="p-3 text-right">{money(item.unit_cost)}</td>
-                      <td className="p-3 text-right font-bold text-green-700">{money(lineMargin)}</td>
-                      <td className="p-3 text-right font-bold">{money(item.total_price)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-bold text-slate-950">Fulfillment Checklist</h2>
+                <div className="mt-4 space-y-3 text-sm text-slate-700">
+                  {['Confirm supplier pricing', 'Confirm lead time and freight', 'Place vendor purchase order', 'Track receiving / shipping', 'Close order when fulfilled'].map((item) => <div key={item} className="rounded-2xl bg-slate-50 p-3 font-semibold">□ {item}</div>)}
+                </div>
+              </div>
+
+              <div className="rounded-3xl bg-gradient-to-br from-slate-950 to-blue-950 p-6 text-white shadow-sm"><div className="text-lg font-bold">Margin Reminder</div><p className="mt-2 text-sm leading-6 text-slate-300">Keep supplier costs current so dashboard margin reporting remains accurate.</p></div>
+            </div>
+          </aside>
         </div>
       </div>
     </AdminShell>
