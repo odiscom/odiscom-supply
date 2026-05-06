@@ -8,10 +8,11 @@ export default function Header() {
           <div className="bg-slate-900 text-white font-bold rounded px-3 py-2">OS</div>
           <span className="font-bold text-lg text-gray-800 tracking-wide">Odiscom Supply</span>
         </Link>
-        <nav className="flex gap-6 text-gray-700 font-medium text-sm">
+        <nav className="hidden md:flex gap-6 text-gray-700 font-medium text-sm items-center">
           <Link href="/shop">Shop</Link>
           <Link href="/quote">Request Quote</Link>
-          <Link href="/admin/quotes">Admin</Link>
+          <Link href="/account">Account</Link>
+          <Link href="/admin" className="bg-slate-900 text-white px-4 py-2 rounded-lg">Admin</Link>
         </nav>
       </div>
     </header>
