@@ -1,0 +1,1 @@
+export default function ProductUploader(){ return <div>Upload</div> }

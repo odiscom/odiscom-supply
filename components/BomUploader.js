@@ -1,0 +1,1 @@
+export default function BomUploader(){ return <div>BOM Upload</div> }
