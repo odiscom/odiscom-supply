@@ -9,6 +9,7 @@ const navItems = [
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/products', label: 'Products' },
   { href: '/admin/suppliers', label: 'Suppliers' },
+  { href: '/admin/supplier-review', label: 'Supplier Review' },
   { href: '/admin/material-uploads', label: 'Material Uploads' },
 ]
 
@@ -27,7 +28,6 @@ export default function AdminShell({ title, children }) {
       setUser(data.session.user)
       setChecking(false)
     }
-
     checkSession()
   }, [router])
 
@@ -36,9 +36,7 @@ export default function AdminShell({ title, children }) {
     router.replace('/admin/login')
   }
 
-  if (checking) {
-    return <main className="min-h-screen bg-gray-50 p-10 text-gray-600">Checking admin session...</main>
-  }
+  if (checking) return <main className="min-h-screen bg-gray-50 p-10 text-gray-600">Checking admin session...</main>
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -56,12 +54,9 @@ export default function AdminShell({ title, children }) {
         </nav>
         <div className="p-4 border-t border-slate-800 text-xs text-slate-400">
           <div className="truncate mb-3">{user?.email}</div>
-          <button onClick={signOut} className="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-4 py-2 font-semibold">
-            Sign out
-          </button>
+          <button onClick={signOut} className="w-full bg-slate-800 hover:bg-slate-700 text-white rounded-lg px-4 py-2 font-semibold">Sign out</button>
         </div>
       </aside>
-
       <main className="flex-1">
         <header className="bg-white border-b px-6 py-5 flex justify-between items-center">
           <div>
