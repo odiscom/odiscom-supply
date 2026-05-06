@@ -14,11 +14,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'Method not allowed' })
   }
 
-  const { fileName, fileUrl, company, contactName, customerEmail, phone, notes } = req.body || {}
+  const { fileName, fileUrl, storagePath, company, contactName, customerEmail, phone, notes } = req.body || {}
 
   if (!fileName || !company || !customerEmail || !notes) {
     return res.status(400).json({ success: false, message: 'Company, email, file name, and notes are required.' })
   }
+
+  const combinedNotes = `Contact: ${contactName || 'N/A'}\nPhone: ${phone || 'N/A'}\nStorage Path: ${storagePath || 'N/A'}\n\n${notes}`
 
   const { data, error } = await supabase.from('material_uploads').insert([
     {
@@ -26,7 +28,7 @@ export default async function handler(req, res) {
       file_url: fileUrl || '',
       company,
       customer_email: customerEmail,
-      notes: `Contact: ${contactName || 'N/A'}\nPhone: ${phone || 'N/A'}\n\n${notes}`,
+      notes: combinedNotes,
       status: 'new',
     },
   ]).select().single()
@@ -47,7 +49,7 @@ export default async function handler(req, res) {
       from: `Odiscom Supply <${process.env.SMTP_USER}>`,
       to: process.env.NOTIFY_EMAIL,
       subject: `New Material Upload: ${company}`,
-      text: `A new material upload request was submitted.\n\nCompany: ${company}\nContact: ${contactName || 'N/A'}\nEmail: ${customerEmail}\nPhone: ${phone || 'N/A'}\nFile: ${fileName}\nLink: ${fileUrl || 'N/A'}\n\nNotes:\n${notes}`,
+      text: `A new material upload request was submitted.\n\nCompany: ${company}\nContact: ${contactName || 'N/A'}\nEmail: ${customerEmail}\nPhone: ${phone || 'N/A'}\nFile: ${fileName}\nLink: ${fileUrl || 'N/A'}\nStorage Path: ${storagePath || 'N/A'}\n\nNotes:\n${notes}`,
     })
   }
 
