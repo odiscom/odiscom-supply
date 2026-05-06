@@ -3,16 +3,37 @@ import Link from 'next/link'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import { supabase } from '../lib/supabase'
+import { broadbandCatalog } from '../data/broadbandCatalog'
+
+function slugify(value) {
+  return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
 
 function productHref(product) {
+  if (product.catalogOnly) return `/quote?item=${encodeURIComponent(product.name)}`
   return `/product/${encodeURIComponent(product.slug || product.id)}`
 }
 
+function catalogProductsFromStaticList() {
+  return broadbandCatalog.flatMap((group) => group.items.map((name) => ({
+    id: `catalog-${slugify(group.category)}-${slugify(name)}`,
+    name,
+    sku: 'Catalog request',
+    slug: slugify(name),
+    category: group.category,
+    manufacturer: 'Odiscom Supply Sourcing',
+    description: 'Catalog request item. Select this material through the quote request workflow for project pricing, lead time, freight, and availability.',
+    status: 'active',
+    catalogOnly: true,
+  })))
+}
+
 export default function Shop() {
-  const [products, setProducts] = useState([])
+  const [databaseProducts, setDatabaseProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
+  const [viewMode, setViewMode] = useState('all')
 
   useEffect(() => {
     async function loadProducts() {
@@ -22,18 +43,28 @@ export default function Shop() {
         .eq('status', 'active')
         .order('name', { ascending: true })
 
-      setProducts(data || [])
+      setDatabaseProducts(data || [])
       setLoading(false)
     }
 
     loadProducts()
   }, [])
 
-  const categories = useMemo(() => [...new Set(products.map((product) => product.category).filter(Boolean))], [products])
+  const staticProducts = useMemo(() => catalogProductsFromStaticList(), [])
+
+  const products = useMemo(() => {
+    const liveNames = new Set(databaseProducts.map((product) => `${product.category || ''}::${product.name || ''}`.toLowerCase()))
+    const staticOnly = staticProducts.filter((product) => !liveNames.has(`${product.category || ''}::${product.name || ''}`.toLowerCase()))
+    if (viewMode === 'live') return databaseProducts
+    if (viewMode === 'catalog') return staticProducts
+    return [...databaseProducts, ...staticOnly]
+  }, [databaseProducts, staticProducts, viewMode])
+
+  const categories = useMemo(() => [...new Set(products.map((product) => product.category).filter(Boolean))].sort(), [products])
 
   const filteredProducts = products.filter((product) => {
     const query = search.toLowerCase()
-    const matchesSearch = !query || [product.name, product.sku, product.manufacturer, product.description].join(' ').toLowerCase().includes(query)
+    const matchesSearch = !query || [product.name, product.sku, product.manufacturer, product.description, product.category].join(' ').toLowerCase().includes(query)
     const matchesCategory = category === 'all' || product.category === category
     return matchesSearch && matchesCategory
   })
@@ -49,9 +80,9 @@ export default function Shop() {
           </div>
           <div className="relative mx-auto max-w-7xl px-6 py-16">
             <div className="max-w-4xl">
-              <div className="mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Live Supply Catalog</div>
-              <h1 className="text-4xl font-bold leading-tight md:text-5xl">Browse telecom infrastructure materials and request project pricing</h1>
-              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">Search active products, SKUs, manufacturers, and categories. Odiscom Supply does not show public pricing online; final pricing is quoted by project, quantity, lead time, freight, and availability.</p>
+              <div className="mb-4 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-100">Full Telecom Supply Catalog</div>
+              <h1 className="text-4xl font-bold leading-tight md:text-5xl">Browse fiber, OSP, wireless, tower, conduit, handhole, and construction materials</h1>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-200">The shop now includes the full request catalog plus live Supabase products. Public pricing stays hidden; Odiscom Supply quotes each request by project, quantity, lead time, freight, and availability.</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/quote" className="rounded-xl bg-blue-600 px-6 py-3 text-center font-semibold text-white hover:bg-blue-700">Start Quote Request</Link>
                 <Link href="/material-upload" className="rounded-xl bg-white px-6 py-3 text-center font-semibold text-slate-950 hover:bg-slate-100">Upload BOM</Link>
@@ -62,32 +93,37 @@ export default function Shop() {
 
         <section className="-mt-8 relative z-10 mx-auto max-w-7xl px-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg">
-            <div className="grid gap-3 md:grid-cols-[1fr_280px]">
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products, SKUs, manufacturers, fiber, conduit, mounts, grounding..." className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white" />
+            <div className="grid gap-3 lg:grid-cols-[1fr_280px_220px]">
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiber count, conduit size, handhole size, connector type, tower mount, grounding..." className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white" />
               <select value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white">
                 <option value="all">All categories</option>
                 {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
               </select>
+              <select value={viewMode} onChange={(e) => setViewMode(e.target.value)} className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-sm outline-none transition focus:border-blue-500 focus:bg-white">
+                <option value="all">All catalog items</option>
+                <option value="catalog">Request catalog only</option>
+                <option value="live">Live database only</option>
+              </select>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => setCategory('all')} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>All</button>
-              {categories.slice(0, 10).map((cat) => <button type="button" key={cat} onClick={() => setCategory(cat)} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{cat}</button>)}
+              {categories.slice(0, 14).map((cat) => <button type="button" key={cat} onClick={() => setCategory(cat)} className={`rounded-full px-4 py-2 text-xs font-semibold ${category === cat ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{cat}</button>)}
             </div>
           </div>
         </section>
 
         <section className="mx-auto max-w-7xl px-6 py-10">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-2xl font-bold text-slate-950">Catalog Products</h2>
-              <p className="text-sm text-slate-600">{filteredProducts.length} active products shown</p>
+              <p className="text-sm text-slate-600">{filteredProducts.length} items shown · {databaseProducts.length} live database products · {staticProducts.length} request catalog items</p>
             </div>
           </div>
 
           {loading ? (
             <div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">Loading catalog...</div>
           ) : filteredProducts.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">No products found. Add products in the admin dashboard or adjust your filters.</div>
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">No products found. Adjust your search or filters.</div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {filteredProducts.map((product) => (
@@ -96,6 +132,7 @@ export default function Shop() {
                     <div className="relative h-44 overflow-hidden bg-gradient-to-br from-slate-100 to-blue-50">
                       {product.image_url ? <img src={product.image_url} alt={product.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-lg font-bold text-slate-300">Odiscom Supply</div>}
                       <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-blue-700 shadow-sm">{product.category || 'Telecom Supply'}</div>
+                      {product.catalogOnly && <div className="absolute bottom-4 left-4 rounded-full bg-slate-950/90 px-3 py-1 text-xs font-bold text-white">Request Catalog</div>}
                     </div>
                     <div className="p-6">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{product.manufacturer || 'Project Sourcing'}</div>
@@ -105,7 +142,7 @@ export default function Shop() {
                         <span className="font-mono text-xs text-slate-500">{product.sku || 'No SKU'}</span>
                         <span className="font-bold text-slate-950">Request Quote</span>
                       </div>
-                      <div className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white transition group-hover:bg-blue-600">View Product</div>
+                      <div className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-semibold text-white transition group-hover:bg-blue-600">{product.catalogOnly ? 'Select in Quote' : 'View Product'}</div>
                     </div>
                   </article>
                 </Link>
