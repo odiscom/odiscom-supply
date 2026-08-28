@@ -9,6 +9,8 @@ export const config = {
   },
 }
 
+const BOM_NOTIFICATION_EMAIL = 'sales@odiscomsupply.com'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' })
@@ -37,25 +39,37 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: error.message })
   }
 
-  if (process.env.SMTP_HOST && process.env.NOTIFY_EMAIL) {
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: false,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    })
+  let notificationSent = false
 
-    await transporter.sendMail({
-      from: `Odiscom Supply <${process.env.SMTP_USER}>`,
-      to: process.env.NOTIFY_EMAIL,
-      subject: `New Material Upload: ${company}`,
-      text: `A new material upload request was submitted.\n\nCompany: ${company}\nContact: ${contactName || 'N/A'}\nEmail: ${customerEmail}\nPhone: ${phone || 'N/A'}\nFile: ${fileName}\nLink: ${fileUrl || 'N/A'}\nStorage Path: ${storagePath || 'N/A'}\n\nNotes:\n${notes}`,
-    })
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      })
+
+      await transporter.sendMail({
+        from: `Odiscom Supply <${process.env.SMTP_USER}>`,
+        to: BOM_NOTIFICATION_EMAIL,
+        replyTo: customerEmail,
+        subject: `New BOM / Material Upload: ${company}`,
+        text: `A new BOM or material upload request was submitted.\n\nCompany: ${company}\nContact: ${contactName || 'N/A'}\nEmail: ${customerEmail}\nPhone: ${phone || 'N/A'}\nFile: ${fileName}\nLink: ${fileUrl || 'N/A'}\nStorage Path: ${storagePath || 'N/A'}\n\nNotes:\n${notes}\n\nReview in Odiscom Supply Admin: https://www.odiscomsupply.com/admin/material-uploads`,
+      })
+
+      notificationSent = true
+    } catch (notificationError) {
+      console.error('BOM notification email failed', notificationError)
+    }
+  } else {
+    console.warn('BOM notification email not sent because SMTP is not configured.')
   }
 
   return res.status(200).json({
     success: true,
     message: 'Material upload request received.',
     upload: data,
+    notificationSent,
   })
 }
