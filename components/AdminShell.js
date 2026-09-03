@@ -8,7 +8,7 @@ const navItems = [
   { href: '/admin/quotes', label: 'Quotes' },
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/products', label: 'Products' },
-  { href: '/admin/suppliers', label: 'Suppliers' },
+  { href: '/admin/suppliers', label: 'Supplier Pipeline' },
   { href: '/admin/supplier-review', label: 'Supplier Review' },
   { href: '/admin/material-uploads', label: 'Material Uploads' },
 ]
