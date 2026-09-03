@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { createSupabaseAdmin } from '../../lib/supabaseAdmin'
 import nodemailer from 'nodemailer'
 
 export const config = {
@@ -23,6 +23,7 @@ export default async function handler(req, res) {
   }
 
   const combinedNotes = `Contact: ${contactName || 'N/A'}\nPhone: ${phone || 'N/A'}\nStorage Path: ${storagePath || 'N/A'}\n\n${notes}`
+  const supabase = createSupabaseAdmin()
 
   const { data, error } = await supabase.from('material_uploads').insert([
     {

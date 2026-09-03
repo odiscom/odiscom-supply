@@ -97,7 +97,9 @@ export default function QuoteDetail() {
   }
 
   async function sendQuote() {
-    const res = await fetch(`/api/quotes/${id}/send`, { method: 'POST' })
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData.session?.access_token
+    const res = await fetch(`/api/quotes/${id}/send`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
     const data = await res.json()
     if (!data.success) return setMessage(data.message || 'Error sending quote.')
     setQuote({ ...quote, status: 'quoted' })

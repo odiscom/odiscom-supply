@@ -1,13 +1,16 @@
-import { supabase } from '../../../../lib/supabase'
+import { createSupabaseAdmin } from '../../../../lib/supabaseAdmin'
 import nodemailer from 'nodemailer'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
-  const { id } = req.query
+  const { id: token } = req.query
+  const supabase = createSupabaseAdmin()
 
-  const { data: quote, error: quoteError } = await supabase.from('quotes').select('*').eq('id', id).single()
+  const { data: quote, error: quoteError } = await supabase.from('quotes').select('*').eq('acceptance_token', token).single()
   if (quoteError || !quote) return res.status(404).json({ success: false, message: 'Quote not found' })
+  if (quote.accepted_at || quote.status === 'accepted') return res.status(409).json({ success: false, message: 'This quote has already been accepted.' })
+  const id = quote.id
 
   const { data: items } = await supabase.from('quote_items').select('*').eq('quote_id', id)
   const total = (items || []).reduce((sum, item) => sum + Number(item.total_price || 0), 0)
@@ -39,7 +42,7 @@ export default async function handler(req, res) {
     })))
   }
 
-  await supabase.from('quotes').update({ status: 'accepted' }).eq('id', id)
+  await supabase.from('quotes').update({ status: 'accepted', accepted_at: new Date().toISOString(), acceptance_token: null }).eq('id', id)
 
   if (process.env.SMTP_HOST && process.env.NOTIFY_EMAIL) {
     const transporter = nodemailer.createTransport({

@@ -8,12 +8,12 @@
     "start": "next start"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
-    "next": "13.4.10",
+    "@supabase/supabase-js": "2.105.3",
+    "next": "16.3.4",
     "nodemailer": "^6.9.15",
     "pdfkit": "^0.15.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.14",

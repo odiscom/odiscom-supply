@@ -1,11 +1,14 @@
 import nodemailer from 'nodemailer'
-import { supabase } from '../../../../lib/supabase'
+import crypto from 'crypto'
+import { createSupabaseAdmin, requireAdmin } from '../../../../lib/supabaseAdmin'
 import { buildProfessionalQuotePdf } from '../../../../lib/quotePdf'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' })
+  if (!(await requireAdmin(req))) return res.status(403).json({ success: false, message: 'Administrator access required' })
 
   const { id } = req.query
+  const supabase = createSupabaseAdmin()
   const { data: quote, error: quoteError } = await supabase.from('quotes').select('*').eq('id', id).single()
   if (quoteError || !quote) return res.status(404).json({ success: false, message: 'Quote not found' })
 
@@ -15,7 +18,8 @@ export default async function handler(req, res) {
 
   const pdfBuffer = await buildProfessionalQuotePdf(quote, items || [])
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-  const acceptLink = `${siteUrl}/quote/accept/${id}`
+  const acceptanceToken = crypto.randomBytes(32).toString('hex')
+  const acceptLink = `${siteUrl}/quote/accept/${acceptanceToken}`
 
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -33,6 +37,6 @@ export default async function handler(req, res) {
     attachments: [{ filename: `quote-${quote.quote_id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
   })
 
-  await supabase.from('quotes').update({ status: 'quoted' }).eq('id', id)
+  await supabase.from('quotes').update({ status: 'quoted', acceptance_token: acceptanceToken }).eq('id', id)
   return res.status(200).json({ success: true, message: 'Quote PDF sent' })
 }

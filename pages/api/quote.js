@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { createSupabaseAdmin } from '../../lib/supabaseAdmin'
 import nodemailer from 'nodemailer'
 
 function buildItemSummary(items = []) {
@@ -18,6 +18,7 @@ export default async function handler(req, res) {
   }
 
   const quoteId = `OSQ-${Date.now()}`
+  const supabase = createSupabaseAdmin()
   const itemSummary = buildItemSummary(selectedItems)
   const quoteDetails = `${details || ''}\n\nRequested Catalog Items:\n${itemSummary}`.trim()
 
@@ -70,5 +71,5 @@ export default async function handler(req, res) {
     })
   }
 
-  return res.status(200).json({ success: true, quoteId, quoteDbId: quote.id })
+  return res.status(200).json({ success: true, quoteId })
 }

@@ -39,21 +39,22 @@ export default function BomUploader() {
   async function uploadFileIfNeeded() {
     if (!file) return { fileUrl: form.fileUrl, storagePath: form.storagePath, fileName: form.fileName }
 
-    const extension = file.name.includes('.') ? file.name.split('.').pop() : 'upload'
-    const path = `${Date.now()}-${safeFileName(form.company)}-${safeFileName(file.name || `upload.${extension}`)}`
-
-    const { error } = await supabase.storage.from('material-uploads').upload(path, file, {
-      cacheControl: '3600',
-      upsert: false,
+    if (file.size > 20 * 1024 * 1024) throw new Error('Files must be 20 MB or smaller.')
+    const signResponse = await fetch('/api/material-upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, fileSize: file.size, company: form.company }),
     })
+    const signed = await signResponse.json()
+    if (!signed.success) throw new Error(signed.message || 'Could not prepare secure upload.')
+
+    const { error } = await supabase.storage.from('material-uploads').uploadToSignedUrl(signed.path, signed.token, file, { cacheControl: '3600' })
 
     if (error) throw new Error(error.message)
 
-    const { data } = supabase.storage.from('material-uploads').getPublicUrl(path)
-
     return {
-      fileUrl: data?.publicUrl || form.fileUrl,
-      storagePath: path,
+      fileUrl: form.fileUrl,
+      storagePath: signed.path,
       fileName: file.name || form.fileName,
     }
   }
@@ -120,7 +121,7 @@ export default function BomUploader() {
           <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-900">Upload file</label>
-              <input type="file" onChange={handleFileChange} accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" className="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm" />
+              <input type="file" onChange={handleFileChange} accept=".xlsx,.xls,.csv,.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.zip" className="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm" />
               {file && <p className="mt-2 text-xs text-slate-500">Selected: {file.name}</p>}
             </div>
             <div>
@@ -139,7 +140,7 @@ export default function BomUploader() {
       </form>
 
       <div className="mt-6 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
-        <div className="rounded-2xl border bg-slate-50 p-4"><strong>Accepted:</strong> XLSX, CSV, PDF, Word, plan images, and shared links.</div>
+        <div className="rounded-2xl border bg-slate-50 p-4"><strong>Accepted:</strong> XLSX, CSV, PDF, Word, ZIP, plan images, and shared links (20 MB max).</div>
         <div className="rounded-2xl border bg-slate-50 p-4"><strong>Use cases:</strong> Fiber BOMs, wireless builds, splice kits, tools, reels, and trailers.</div>
         <div className="rounded-2xl border bg-slate-50 p-4"><strong>Next step:</strong> Odiscom Supply reviews your list and prepares pricing.</div>
       </div>
