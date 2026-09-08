@@ -1,5 +1,7 @@
 # Result-integrity audit — 2026-09-08
 
+> A follow-up review found additional missing-cost and aggregate-total defects. See [the follow-up audit](result-integrity-followup-2026-09-08.md); the original completion claim is not exhaustive.
+
 Baseline: OdiscomLLC/odiscom-supply main ed082ab55b824940169678337a3df1da7f948145. Reviewed all 64 tracked files, including public catalog, supplier/admin screens, financial calculations, BOM intake, quote PDFs, email issuance and order acceptance. This review does not certify supplier prices or qualifications.
 
 ## Corrections
