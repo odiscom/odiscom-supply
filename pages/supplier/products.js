@@ -70,7 +70,7 @@ export default function SupplierProducts() {
     const cleanSlug = slugify(form.slug || form.name || form.sku)
     if (!cleanSlug) return setMessage('Product needs a valid slug.')
 
-    const { error } = await supabase.from('products').insert([{ ...form, slug: cleanSlug, supplier_name: supplier.name, manufacturer: form.manufacturer || supplier.name, status: 'supplier_review', price: amount(form.price), cost: amount(form.cost) }])
+    const { error } = await supabase.from('products').insert([{ ...form, slug: cleanSlug, supplier_name: supplier.name, manufacturer: form.manufacturer.trim() || null, status: 'supplier_review', price: amount(form.price), cost: amount(form.cost) }])
     if (error) return setMessage(error.message)
     setForm(emptyProduct)
     setMessage('Product submitted for Odiscom review.')
@@ -129,7 +129,7 @@ export default function SupplierProducts() {
 }
 
 function ProductRow({ product, onUpdate }) {
-  const [cost, setCost] = useState(product.cost || 0)
+  const [cost, setCost] = useState(product.cost ?? '')
   const [leadTime, setLeadTime] = useState(product.lead_time || '')
   const [status, setStatus] = useState(product.status || 'supplier_review')
 

@@ -70,6 +70,7 @@ export default function OrdersPage() {
   const activeOrders = orders.filter((order) => !['completed', 'cancelled'].includes(order.status)).length
   const marginPercent = margins(totalValue,totalCost).margin
 
+  if(loading) return <AdminShell title="Orders"><div>Loading orders...</div></AdminShell>
   if(error) return <AdminShell title="Orders"><div role="alert">{error}</div></AdminShell>
   return (
     <AdminShell title="Orders">
@@ -134,7 +135,7 @@ export default function OrdersPage() {
                   {filteredOrders.length === 0 && <tr><td colSpan="8" className="px-5 py-10 text-center text-slate-500">No orders found.</td></tr>}
                   {filteredOrders.map((order) => {
                     const totals = totalsForOrder(order.id)
-                    const sell = Number(order.total || totals.sell)
+                    const sell = amount(order.total) ?? totals.sell
                     return (
                       <tr key={order.id} className="border-t border-slate-200 align-top hover:bg-slate-50">
                         <td className="px-5 py-4"><div className="font-mono font-bold text-blue-700">{order.order_number}</div><div className="mt-1 text-xs text-slate-500">{order.created_at ? new Date(order.created_at).toLocaleDateString() : ''}</div></td>

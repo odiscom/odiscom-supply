@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AdminShell from '../../../components/AdminShell'
 import { supabase } from '../../../lib/supabase'
+import { recordTotal, margins } from '../../../lib/pricing'
 
 const emptyOpportunity = {
   solicitation_number: '',
@@ -55,17 +56,20 @@ export default function HardwareOpportunitiesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('active')
 
   useEffect(() => { loadOpportunities() }, [])
 
   async function loadOpportunities() {
+    setLoading(true)
+    setLoadError('')
     const { data, error } = await supabase
       .from('hardware_opportunities')
       .select('*')
       .order('response_deadline', { ascending: true, nullsFirst: false })
-    if (error) setMessage(error.message)
+    if (error) { setLoadError('Hardware opportunities could not be loaded. Totals are unavailable.'); setLoading(false); return }
     setOpportunities(data || [])
     setLoading(false)
   }
@@ -119,8 +123,10 @@ export default function HardwareOpportunitiesPage() {
   const active = opportunities.filter((item) => !closedStages.has(item.stage))
   const critical = active.filter((item) => item.priority === 'critical').length
   const sourcing = active.filter((item) => ['sourcing', 'pricing'].includes(item.stage)).length
-  const targetRevenue = active.reduce((sum, item) => sum + Number(item.target_revenue || 0), 0)
-  const targetCost = active.reduce((sum, item) => sum + Number(item.estimated_cost || 0), 0)
+  const targetRevenue = recordTotal(active, 'target_revenue')
+  const targetCost = recordTotal(active, 'estimated_cost')
+
+  if (loading || loadError) return <AdminShell title="Hardware Bids"><div role={loadError ? 'alert' : 'status'}>{loadError || 'Loading hardware opportunities...'}</div></AdminShell>
 
   return (
     <AdminShell title="Hardware Bids">
@@ -138,7 +144,7 @@ export default function HardwareOpportunitiesPage() {
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Critical</div><div className="mt-2 text-3xl font-bold text-red-700">{critical}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">In Sourcing</div><div className="mt-2 text-3xl font-bold text-amber-700">{sourcing}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Target Revenue</div><div className="mt-2 text-3xl font-bold text-blue-700">{money(targetRevenue)}</div></div>
-          <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Target Gross Profit</div><div className="mt-2 text-3xl font-bold text-green-700">{money(targetRevenue - targetCost)}</div></div>
+          <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Target Gross Profit</div><div className="mt-2 text-3xl font-bold text-green-700">{money(margins(targetRevenue, targetCost).grossProfit)}</div><div className="mt-1 text-xs text-slate-500">Requires revenue and cost estimates for every active pursuit.</div></div>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
