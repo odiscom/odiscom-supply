@@ -133,76 +133,8 @@ create policy "Admins manage opportunity supplier quotes"
   using ((select private.is_admin()))
   with check ((select private.is_admin()));
 
-insert into public.hardware_opportunities (
-  solicitation_number, title, agency, contracting_office, notice_type, naics, psc,
-  set_aside, posted_at, response_deadline, source_url, delivery_locations,
-  scope_summary, bidding_entity, stage, priority, fit_score, assigned_to,
-  next_action, next_action_due, submission_method, submission_contact, notes
-) values (
-  'W50S8326QA002',
-  'GASNTi2 Block 1 Nationwide Material Procurement (Electrical & Telecommunications)',
-  'Department of Defense / National Guard Bureau',
-  'W7NC USPFO Activity MEANG 101',
-  'Request for Quote',
-  '238210',
-  '5975',
-  'Total Small Business Set-Aside',
-  '2026-08-21 12:15:00-04',
-  '2026-09-18 12:00:00-04',
-  'https://sam.gov/workspace/contract/opp/afb8f8fcb38640eeb2468d873605f63a/view',
-  '11 military installations nationwide',
-  'Supply electrical and telecommunications infrastructure materials, grounding, conduit, supporting hardware, and ISO shipping containers for 11 destinations. Firm-fixed-price, supply-only, lowest-price technically acceptable acquisition.',
-  'Odiscom LLC',
-  'sourcing',
-  'critical',
-  94,
-  'Jeff Johnson',
-  'Issue supplier RFQs and collect complete pricing, freight, lead-time, and compliance responses.',
-  '2026-09-10',
-  'Email',
-  '101.msg.msc.contracting@us.af.mil',
-  'Odiscom Supply supports sourcing and pricing; Odiscom LLC is the offeror and bidding entity.'
-) on conflict (solicitation_number) do update set
-  title = excluded.title,
-  response_deadline = excluded.response_deadline,
-  source_url = excluded.source_url,
-  bidding_entity = excluded.bidding_entity,
-  updated_at = now();
-
-insert into public.hardware_opportunities (
-  solicitation_number, title, agency, contracting_office, notice_type, naics, psc,
-  set_aside, posted_at, response_deadline, source_url, delivery_locations,
-  scope_summary, bidding_entity, stage, priority, fit_score, assigned_to,
-  next_action, next_action_due, submission_method, submission_contact, notes
-) values (
-  'W50S83-26-Q-0018',
-  'GASNTi2 Block 1 Material Procurement — Power Tools and Equipment',
-  'Department of Defense / National Guard Bureau',
-  'W7NC USPFO Activity MEANG 101',
-  'Presolicitation',
-  '333991',
-  '5180',
-  'Total Small Business Set-Aside',
-  '2026-09-01 15:55:00-04',
-  '2026-09-15 17:00:00-04',
-  'https://sam.gov/workspace/contract/opp/c2d5ca572abd4f6a9bed7174c8a91c07/view',
-  'South Portland, Maine',
-  'Brand-name-or-equal commercial procurement of power tools, hand tools, testing instruments, software, and related material parts for GASNTi2 Block 1.',
-  'Odiscom LLC',
-  'reviewing',
-  'high',
-  85,
-  'Jeff Johnson',
-  'Confirm the final solicitation release and pre-source specified Milwaukee, Greenlee, Burndy, Southwire, and Wiha items.',
-  '2026-09-09',
-  'To be confirmed in final solicitation',
-  '101.msg.msc.contracting@us.af.mil',
-  'Treat as a capture and sourcing lead until the final RFQ is released.'
-) on conflict (solicitation_number) do update set
-  title = excluded.title,
-  response_deadline = excluded.response_deadline,
-  source_url = excluded.source_url,
-  bidding_entity = excluded.bidding_entity,
-  updated_at = now();
+-- Opportunity rows are deliberately not seeded. They must enter through an
+-- authorized source-ingestion or human-review path with preserved provenance;
+-- schema installation must not create scores, assignments, stages, or actions.
 
 notify pgrst, 'reload schema';
