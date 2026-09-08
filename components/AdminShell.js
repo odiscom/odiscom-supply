@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 
 const navItems = [
   { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/opportunities', label: 'Hardware Bids' },
   { href: '/admin/quotes', label: 'Quotes' },
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/products', label: 'Products' },
@@ -61,7 +62,7 @@ export default function AdminShell({ title, children }) {
         <header className="bg-white border-b px-6 py-5 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-            <p className="text-sm text-gray-500">Manage quotes, orders, products, suppliers, material uploads, and supply operations.</p>
+            <p className="text-sm text-gray-500">Source through Odiscom Supply and prepare hardware bids for Odiscom LLC.</p>
           </div>
           <Link href="/" className="text-sm font-semibold text-blue-600">View site</Link>
         </header>
