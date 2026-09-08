@@ -13,3 +13,9 @@ Additional defects remained after the earlier audit:
 Validation: all six pricing tests passed, including incomplete totals, explicit zero, invalid inputs and hardware profit cases. Production build passed. These checks do not establish a deployed fix or verified supplier prices. No catalog price, stock quantity, supplier quote or commercial order was invented or issued.
 
 Release follow-up: inspect PR checks and deployment, then verify authenticated account/admin/supplier workflows and incomplete data on the deployed revision. Continue review of existing default/seed records; the earlier audit is not a blanket certification that all stored values are verified.
+
+## Bootstrap follow-up
+
+The hardware-pipeline schema migration no longer inserts two realistic SAM opportunities with hardcoded fit scores, priority, stage, assignee, next action, deadlines, and contact details. Schema installation now creates no bid results; opportunity records must enter through an authorized source-ingestion or human-review path with provenance. A regression test rejects any direct `hardware_opportunities` insert in that migration.
+
+This source correction does not delete or certify rows in an already-migrated database. The two solicitation numbers previously embedded in the migration (`W50S8326QA002` and `W50S83-26-Q-0018`) require a separate persisted-data provenance review before any destructive cleanup or operational use.
