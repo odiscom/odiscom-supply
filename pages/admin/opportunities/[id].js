@@ -9,7 +9,7 @@ const emptySupplierQuote = {
 }
 
 const emptyItem = {
-  line_number: '', description: '', quantity: '1', unit: 'EA', preferred_manufacturer: '', preferred_part_number: '', brand_name_or_equal: true, taa_required: false, baba_required: false, domestic_source_required: false, unit_cost: '', sell_unit_price: '', lead_time: '', compliance_notes: '',
+  line_number: '', site_name: '', clin_number: '', source_item_number: '', description: '', manufacturer_description: '', quantity: '1', unit: 'EA', unit_quantity: '1', preferred_manufacturer: '', preferred_part_number: '', brand_name_or_equal: true, taa_required: false, baba_required: false, domestic_source_required: false, unit_cost: '', sell_unit_price: '', lead_time: '', compliance_notes: '',
 }
 
 function money(value) {
@@ -35,6 +35,7 @@ export default function HardwareOpportunityDetailPage() {
   const [items, setItems] = useState([])
   const [supplierForm, setSupplierForm] = useState(emptySupplierQuote)
   const [itemForm, setItemForm] = useState(emptyItem)
+  const [siteFilter, setSiteFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
 
@@ -147,6 +148,9 @@ export default function HardwareOpportunityDetailPage() {
   }), [supplierQuotes])
 
   const bestReceived = quoteMetrics.filter((quote) => quote.status === 'received' && quote.material_cost !== null).sort((a, b) => a.totalCost - b.totalCost)[0]
+  const sites = useMemo(() => [...new Set(items.map((item) => item.site_name).filter(Boolean))].sort(), [items])
+  const visibleItems = useMemo(() => siteFilter === 'all' ? items : items.filter((item) => item.site_name === siteFilter), [items, siteFilter])
+  const unresolvedQuantities = useMemo(() => items.filter((item) => item.quantity_status !== 'verified').length, [items])
 
   if (loading) return <AdminShell title="Hardware Bid"><div className="rounded-3xl bg-white p-10 text-slate-600">Loading sourcing workspace...</div></AdminShell>
   if (!opportunity) return <AdminShell title="Hardware Bid"><div className="rounded-3xl bg-white p-10 text-slate-600">Opportunity not found.</div></AdminShell>
@@ -161,10 +165,11 @@ export default function HardwareOpportunityDetailPage() {
 
         {message && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">{message}</div>}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Deadline</div><div className="mt-2 text-xl font-bold">{opportunity.response_deadline ? new Date(opportunity.response_deadline).toLocaleString() : 'Not set'}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Suppliers Quoting</div><div className="mt-2 text-3xl font-bold text-blue-700">{supplierQuotes.length}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">BOM Lines</div><div className="mt-2 text-3xl font-bold">{items.length}</div></div>
+          <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Quantity Clarifications</div><div className={`mt-2 text-3xl font-bold ${unresolvedQuantities ? 'text-amber-700' : 'text-green-700'}`}>{unresolvedQuantities}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Best Received Cost</div><div className="mt-2 text-2xl font-bold text-green-700">{bestReceived ? money(bestReceived.totalCost) : '—'}</div></div>
         </div>
 
@@ -209,6 +214,7 @@ export default function HardwareOpportunityDetailPage() {
         <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
           <form onSubmit={saveItem} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div><h3 className="text-xl font-bold text-slate-950">Add BOM line</h3><p className="mt-1 text-sm text-slate-600">Capture the exact manufacturer, part number, quantity, compliance, cost, and bid price.</p></div>
+            <div className="grid grid-cols-2 gap-3"><input value={itemForm.site_name} onChange={(event) => setItemForm({ ...itemForm, site_name: event.target.value })} placeholder="Site" className="rounded-xl border p-3" /><input value={itemForm.clin_number} onChange={(event) => setItemForm({ ...itemForm, clin_number: event.target.value })} placeholder="CLIN" className="rounded-xl border p-3" /></div>
             <div className="grid grid-cols-3 gap-3"><input value={itemForm.line_number} onChange={(event) => setItemForm({ ...itemForm, line_number: event.target.value })} placeholder="Line" className="rounded-xl border p-3" /><input required type="number" min="0.001" step="0.001" value={itemForm.quantity} onChange={(event) => setItemForm({ ...itemForm, quantity: event.target.value })} placeholder="Qty" className="rounded-xl border p-3" /><input value={itemForm.unit} onChange={(event) => setItemForm({ ...itemForm, unit: event.target.value })} placeholder="Unit" className="rounded-xl border p-3" /></div>
             <textarea required value={itemForm.description} onChange={(event) => setItemForm({ ...itemForm, description: event.target.value })} placeholder="Item description" rows="3" className="w-full rounded-xl border p-3" />
             <div className="grid grid-cols-2 gap-3"><input value={itemForm.preferred_manufacturer} onChange={(event) => setItemForm({ ...itemForm, preferred_manufacturer: event.target.value })} placeholder="Manufacturer" className="rounded-xl border p-3" /><input value={itemForm.preferred_part_number} onChange={(event) => setItemForm({ ...itemForm, preferred_part_number: event.target.value })} placeholder="Part number" className="rounded-xl border p-3" /></div>
@@ -218,8 +224,8 @@ export default function HardwareOpportunityDetailPage() {
           </form>
 
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b p-5"><h3 className="font-bold text-slate-950">Bid BOM and pricing</h3><p className="mt-1 text-sm text-slate-500">Line-item pricing basis for the Odiscom LLC submission.</p></div>
-            <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3 text-left">Line</th><th className="px-4 py-3 text-left">Requirement</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Unit cost</th><th className="px-4 py-3 text-right">Sell price</th><th className="px-4 py-3 text-right">Extended GP</th><th className="px-4 py-3"></th></tr></thead><tbody>{items.length === 0 && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No BOM lines entered yet.</td></tr>}{items.map((item) => { const gp = Number(item.quantity) * (Number(item.sell_unit_price || 0) - Number(item.unit_cost || 0)); return <tr key={item.id} className="border-t align-top"><td className="px-4 py-4 font-mono text-blue-700">{item.line_number || '—'}</td><td className="px-4 py-4"><div className="max-w-md font-semibold text-slate-950">{item.description}</div><div className="mt-1 text-xs text-slate-500">{[item.preferred_manufacturer, item.preferred_part_number].filter(Boolean).join(' · ')}</div><div className="mt-2 flex flex-wrap gap-1">{item.taa_required && <Badge tone="amber">TAA</Badge>}{item.baba_required && <Badge tone="amber">BABA</Badge>}{item.domestic_source_required && <Badge tone="amber">Domestic</Badge>}</div></td><td className="px-4 py-4 text-right">{item.quantity} {item.unit}</td><td className="px-4 py-4 text-right">{money(item.unit_cost)}</td><td className="px-4 py-4 text-right">{money(item.sell_unit_price)}</td><td className="px-4 py-4 text-right font-bold text-green-700">{item.sell_unit_price ? money(gp) : '—'}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => deleteItem(item)} className="text-xs font-semibold text-red-700">Delete</button></td></tr> })}</tbody></table></div>
+            <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-end sm:justify-between"><div><h3 className="font-bold text-slate-950">Bid BOM and pricing</h3><p className="mt-1 text-sm text-slate-500">Line-item pricing basis for the Odiscom LLC submission.</p></div><label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Site<select value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)} className="mt-1 block min-w-64 rounded-xl border p-2 text-sm font-normal normal-case text-slate-800"><option value="all">All sites ({items.length})</option>{sites.map((site) => <option key={site} value={site}>{site} ({items.filter((item) => item.site_name === site).length})</option>)}</select></label></div>
+            <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3 text-left">Site / Line</th><th className="px-4 py-3 text-left">Requirement</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Unit cost</th><th className="px-4 py-3 text-right">Sell price</th><th className="px-4 py-3 text-right">Extended GP</th><th className="px-4 py-3"></th></tr></thead><tbody>{visibleItems.length === 0 && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No BOM lines entered yet.</td></tr>}{visibleItems.map((item) => { const gp = Number(item.quantity) * (Number(item.sell_unit_price || 0) - Number(item.unit_cost || 0)); return <tr key={item.id} className={`border-t align-top ${item.quantity_status !== 'verified' ? 'bg-amber-50' : ''}`}><td className="px-4 py-4"><div className="font-semibold text-slate-900">{item.site_name || 'Unassigned site'}</div><div className="mt-1 font-mono text-xs text-blue-700">{item.clin_number ? `CLIN ${item.clin_number} · ` : ''}{item.source_item_number || item.line_number || '—'}</div></td><td className="px-4 py-4"><div className="max-w-md font-semibold text-slate-950">{item.description}</div><div className="mt-1 max-w-xl text-xs text-slate-600">{item.manufacturer_description}</div><div className="mt-1 text-xs text-slate-500">{[item.preferred_manufacturer, item.preferred_part_number].filter(Boolean).join(' · ')}</div><div className="mt-2 flex flex-wrap gap-1">{item.quantity_status !== 'verified' && <Badge tone="amber">Quantity clarification</Badge>}{item.taa_required && <Badge tone="amber">TAA</Badge>}{item.baba_required && <Badge tone="amber">BABA</Badge>}{item.domestic_source_required && <Badge tone="amber">Domestic</Badge>}</div></td><td className="px-4 py-4 text-right">{item.quantity ?? 'TBD'} {item.unit}</td><td className="px-4 py-4 text-right">{money(item.unit_cost)}</td><td className="px-4 py-4 text-right">{money(item.sell_unit_price)}</td><td className="px-4 py-4 text-right font-bold text-green-700">{item.sell_unit_price ? money(gp) : '—'}</td><td className="px-4 py-4 text-right"><button type="button" onClick={() => deleteItem(item)} className="text-xs font-semibold text-red-700">Delete</button></td></tr> })}</tbody></table></div>
           </div>
         </div>
       </div>
