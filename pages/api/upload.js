@@ -9,7 +9,7 @@ export const config = {
   },
 }
 
-const BOM_NOTIFICATION_EMAIL = 'sales@odiscomsupply.com'
+const BOM_NOTIFICATION_EMAIL = 'sales@odiscom.com'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
