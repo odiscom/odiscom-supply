@@ -22,7 +22,7 @@ function catalogProductsFromStaticList() {
     sku: expanded.length ? expanded.length : 'Catalog request',
     slug: slugify(expanded.name),
     category: group.category,
-    manufacturer: 'Odiscom Supply Sourcing',
+    manufacturer: 'Manufacturer to be specified',
     description: expanded.lengthLabel || 'Catalog request item. Select this material through the quote request workflow for project pricing, lead time, freight, and availability.',
     unit: expanded.unit,
     length: expanded.length,
@@ -33,6 +33,7 @@ function catalogProductsFromStaticList() {
 
 export default function Shop() {
   const [databaseProducts, setDatabaseProducts] = useState([])
+  const [error,setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
@@ -40,12 +41,13 @@ export default function Shop() {
 
   useEffect(() => {
     async function loadProducts() {
-      const { data } = await supabase
+      const { data,error:loadError } = await supabase
         .from('products')
         .select('*')
         .eq('status', 'active')
         .order('name', { ascending: true })
 
+      if(loadError) setError('Saved product records are unavailable. The request catalog below does not represent inventory or confirmed availability.')
       setDatabaseProducts(data || [])
       setLoading(false)
     }
@@ -75,7 +77,7 @@ export default function Shop() {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-slate-50">
+      <main className="min-h-screen bg-slate-50">{error && <p role="alert" className="p-6">{error}</p>}
         <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white">
           <div className="absolute inset-0 opacity-20">
             <div className="absolute left-0 top-0 h-80 w-80 rounded-full bg-blue-500 blur-3xl" />

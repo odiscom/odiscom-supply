@@ -6,6 +6,7 @@ import Footer from '../../components/Footer'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -66,7 +67,7 @@ export default function CategoryPage() {
                       <p className="text-gray-600 text-sm mb-5">{product.description || 'Request quote for pricing and availability.'}</p>
                       <div className="border-t pt-4 flex items-center justify-between text-sm">
                         <span className="font-mono text-gray-500">{product.sku || 'No SKU'}</span>
-                        <span className="font-semibold text-slate-900">{Number(product.price || 0) > 0 ? money(product.price) : 'Request Quote'}</span>
+                        <span className="font-semibold text-slate-900">Request Quote</span>
                       </div>
                     </div>
                   </article>

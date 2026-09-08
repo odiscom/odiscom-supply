@@ -1,9 +1,11 @@
+import { amount, margins } from '../../lib/pricing'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import SupplierShell from '../../components/SupplierShell'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -48,7 +50,8 @@ export default function SupplierDashboard() {
 
   const activeProducts = products.filter((p) => p.status === 'active').length
   const draftProducts = products.filter((p) => p.status === 'draft' || p.status === 'supplier_review').length
-  const avgCost = products.length ? products.reduce((sum, p) => sum + Number(p.cost || 0), 0) / products.length : 0
+  const knownCostProducts=products.filter(p=>Number(p.cost)>0)
+  const avgCost=knownCostProducts.length?knownCostProducts.reduce((sum,p)=>sum+Number(p.cost),0)/knownCostProducts.length:null
 
   return (
     <SupplierShell title="Supplier Dashboard">

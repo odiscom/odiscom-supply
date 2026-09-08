@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       })
 
       await transporter.sendMail({
-        from: `Odiscom Supply <${process.env.SMTP_USER}>`,
+        from: 'Odiscom Supply <sales@odiscom.com>',
         to: BOM_NOTIFICATION_EMAIL,
         replyTo: customerEmail,
         subject: `New BOM / Material Upload: ${company}`,

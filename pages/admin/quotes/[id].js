@@ -1,9 +1,11 @@
+import { totalFor, lineTotal, margins, amount } from '../../../lib/pricing'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import AdminShell from '../../../components/AdminShell'
 import { supabase } from '../../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -35,8 +37,8 @@ export default function QuoteDetail() {
   const [notes, setNotes] = useState('')
   const [selectedProduct, setSelectedProduct] = useState('')
   const [quantity, setQuantity] = useState(1)
-  const [unitPrice, setUnitPrice] = useState(0)
-  const [unitCost, setUnitCost] = useState(0)
+  const [unitPrice, setUnitPrice] = useState('')
+  const [unitCost, setUnitCost] = useState('')
   const [supplierName, setSupplierName] = useState('')
   const [customProductName, setCustomProductName] = useState('')
   const [message, setMessage] = useState('')
@@ -44,10 +46,11 @@ export default function QuoteDetail() {
   useEffect(() => { if (id) loadData() }, [id])
 
   async function loadData() {
-    const { data: quoteData } = await supabase.from('quotes').select('*').eq('id', id).single()
-    const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id).order('created_at', { ascending: true })
+    const { data: quoteData,error:quoteError } = await supabase.from('quotes').select('*').eq('id', id).single()
+    const { data: itemsData,error:itemsError } = await supabase.from('quote_items').select('*').eq('quote_id', id).order('created_at', { ascending: true })
     const { data: supplierData } = await supabase.from('suppliers').select('*').order('name', { ascending: true })
     const { data: productData } = await supabase.from('products').select('*').eq('status', 'active').order('name', { ascending: true })
+    if(quoteError || itemsError) {setMessage('Quote data could not be loaded.');return}
     setQuote(quoteData)
     setItems(itemsData || [])
     setSuppliers(supplierData || [])
@@ -59,8 +62,8 @@ export default function QuoteDetail() {
     setSelectedProduct(productId)
     const product = catalogProducts.find((p) => p.id === productId)
     if (product) {
-      setUnitPrice(Number(product.price || 0))
-      setUnitCost(Number(product.cost || 0))
+      setUnitPrice(product.price == null ? '' : product.price)
+      setUnitCost('') // Supplier cost must be confirmed for this quote.
       setCustomProductName(product.name)
     }
   }
@@ -71,14 +74,14 @@ export default function QuoteDetail() {
     const productSlug = product?.sku || product?.id || customProductName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     if (!productName) return setMessage('Select a product or enter a custom product name.')
 
-    const { data, error } = await supabase.from('quote_items').insert([{ quote_id: id, product_slug: productSlug, product_name: productName, quantity, unit: product?.unit || 'each', unit_price: unitPrice, unit_cost: unitCost, supplier_name: supplierName }]).select()
+    const { data, error } = await supabase.from('quote_items').insert([{ quote_id: id, product_slug: productSlug, product_name: productName, quantity, unit: product?.unit || 'each', unit_price: amount(unitPrice), unit_cost: amount(unitCost), cost_confirmed: amount(unitCost) !== null, supplier_name: supplierName }]).select()
     if (error) return setMessage(error.message)
     setItems([...items, ...(data || [])])
     setSelectedProduct('')
     setCustomProductName('')
     setQuantity(1)
-    setUnitPrice(0)
-    setUnitCost(0)
+    setUnitPrice('')
+    setUnitCost('')
     setSupplierName('')
     setMessage('Item added.')
   }
@@ -96,6 +99,22 @@ export default function QuoteDetail() {
     setMessage('Notes saved.')
   }
 
+  async function downloadPdf() {
+    const {data} = await supabase.auth.getSession()
+    const response = await fetch(`/api/quotes/${id}/pdf`,{headers:{Authorization:`Bearer ${data.session?.access_token}`}})
+    if(!response.ok) return setMessage('PDF could not be loaded.')
+    const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download='quote.pdf';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+  }
+  async function priceItem(item) {
+    const price=prompt('Confirmed selling unit price (leave blank if unknown)',item.unit_price ?? '')
+    if(price === null) return
+    const cost=prompt('Verified supplier unit cost (leave blank if unknown)',item.unit_cost ?? '')
+    if(cost === null) return
+    if((price !== '' && amount(price) === null) || (cost !== '' && amount(cost) === null)) return setMessage('Enter nonnegative numeric amounts.')
+    const {error}=await supabase.from('quote_items').update({unit_price:amount(price),unit_cost:amount(cost),cost_confirmed:amount(cost)!==null}).eq('id',item.id).eq('quote_id',id)
+    if(error) return setMessage('Item pricing could not be saved.')
+    await loadData()
+  }
   async function sendQuote() {
     const { data: sessionData } = await supabase.auth.getSession()
     const token = sessionData.session?.access_token
@@ -106,12 +125,12 @@ export default function QuoteDetail() {
     setMessage('Quote sent to customer.')
   }
 
-  if (!quote) return <AdminShell title="Quote Detail"><div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">Loading quote...</div></AdminShell>
+  if (!quote) return <AdminShell title="Quote Detail"><div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">{message || 'Loading quote...'}</div></AdminShell>
 
-  const total = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
-  const totalCost = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
-  const totalMargin = total - totalCost
-  const marginPercent = total > 0 ? (totalMargin / total) * 100 : 0
+  const total = totalFor(items)
+  const totalCost = totalFor(items,'unit_cost')
+  const totalMargin = margins(total,totalCost).grossProfit
+  const marginPercent = margins(total,totalCost).margin
 
   return (
     <AdminShell title={`Quote ${quote.quote_id}`}>
@@ -130,7 +149,7 @@ export default function QuoteDetail() {
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Sell Total</div><div className="mt-1 text-xl font-bold">{money(total)}</div></div>
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Cost</div><div className="mt-1 text-xl font-bold">{money(totalCost)}</div></div>
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin</div><div className="mt-1 text-xl font-bold text-green-300">{money(totalMargin)}</div></div>
-              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin %</div><div className="mt-1 text-xl font-bold text-green-300">{marginPercent.toFixed(1)}%</div></div>
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin %</div><div className="mt-1 text-xl font-bold text-green-300">{marginPercent == null ? 'Not established' : marginPercent.toFixed(1) + '%'}</div></div>
             </div>
           </div>
         </div>
@@ -156,8 +175,8 @@ export default function QuoteDetail() {
                   <select value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="">Supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.name}>{supplier.name}</option>)}</select>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                  <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(Number(e.target.value))} className="rounded-xl border border-slate-300 bg-white p-3 text-sm" placeholder="Sell price" />
-                  <input type="number" value={unitCost} onChange={(e) => setUnitCost(Number(e.target.value))} className="rounded-xl border border-slate-300 bg-white p-3 text-sm" placeholder="Unit cost" />
+                  <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className="rounded-xl border border-slate-300 bg-white p-3 text-sm" placeholder="Sell price" />
+                  <input type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} className="rounded-xl border border-slate-300 bg-white p-3 text-sm" placeholder="Unit cost" />
                   <button type="button" onClick={addItem} className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700">Add Item</button>
                 </div>
               </div>
@@ -169,9 +188,9 @@ export default function QuoteDetail() {
                     <tbody>
                       {items.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-slate-500">No quote items yet.</td></tr>}
                       {items.map((item) => {
-                        const lineCost = Number(item.quantity || 0) * Number(item.unit_cost || 0)
-                        const lineMargin = Number(item.total_price || 0) - lineCost
-                        return <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4">{item.supplier_name || '-'}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(item.unit_price)}</td><td className="p-4 text-right">{money(item.unit_cost)}</td><td className="p-4 text-right font-bold text-green-700">{money(lineMargin)}</td><td className="p-4 text-right font-bold">{money(item.total_price)}</td></tr>
+                        const lineCost = item.cost_confirmed ? lineTotal(item,'unit_cost') : null
+                        const lineMargin = margins(lineTotal(item),lineCost).grossProfit
+                        return <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4">{item.supplier_name || '-'}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(Number(item.unit_price)>0 ? item.unit_price : null)} <button type="button" disabled={['quoted','accepted'].includes(quote.status)} onClick={() => priceItem(item)} className="ml-2 text-blue-700">Price / cost</button></td><td className="p-4 text-right">{money(item.cost_confirmed ? item.unit_cost : null)}</td><td className="p-4 text-right font-bold text-green-700">{money(lineMargin)}</td><td className="p-4 text-right font-bold">{money(Number(item.unit_price)>0 ? item.total_price : null)}</td></tr>
                       })}
                     </tbody>
                   </table>
@@ -185,7 +204,7 @@ export default function QuoteDetail() {
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-bold text-slate-950">Workflow Actions</h2>
                 <select value={quote.status} onChange={(e) => updateStatus(e.target.value)} className="mt-5 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"><option value="pending">Pending</option><option value="quoted">Quoted</option><option value="accepted">Accepted</option><option value="won">Won</option><option value="lost">Lost</option></select>
-                <div className="mt-4 space-y-3"><a href={`/api/quotes/${id}/pdf`} target="_blank" className="block rounded-xl bg-green-600 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-green-700">Generate PDF</a><button type="button" onClick={sendQuote} className="w-full rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white hover:bg-purple-700">Send Quote</button></div>
+                <div className="mt-4 space-y-3"><button type="button" onClick={downloadPdf} className="block rounded-xl bg-green-600 px-5 py-3 text-center text-sm font-semibold text-white hover:bg-green-700">Generate PDF</button><button type="button" onClick={sendQuote} className="w-full rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white hover:bg-purple-700">Send Quote</button></div>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-xl font-bold text-slate-950">Internal Notes</h2>

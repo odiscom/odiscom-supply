@@ -1,3 +1,4 @@
+import { totalFor } from '../../../lib/pricing'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import Header from '../../../components/Header'
@@ -5,6 +6,7 @@ import Footer from '../../../components/Footer'
 import { supabase } from '../../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -76,7 +78,7 @@ export default function CustomerQuoteDetail() {
     loadQuote()
   }
 
-  const total = items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
+  const total = totalFor(items)
   const canAccept = quote && ['quoted', 'pending'].includes(quote.status) && !order
 
   return (
@@ -123,7 +125,7 @@ export default function CustomerQuoteDetail() {
                       <thead className="bg-slate-50 text-slate-600"><tr><th className="p-4 text-left">Product</th><th className="p-4 text-right">Qty</th><th className="p-4 text-right">Unit Price</th><th className="p-4 text-right">Total</th></tr></thead>
                       <tbody>
                         {items.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-slate-500">No priced quote items yet.</td></tr>}
-                        {items.map((item) => <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(item.unit_price)}</td><td className="p-4 text-right font-bold">{money(item.total_price)}</td></tr>)}
+                        {items.map((item) => <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(Number(item.unit_price)>0 ? item.unit_price : null)}</td><td className="p-4 text-right font-bold">{money(Number(item.unit_price)>0 ? item.total_price : null)}</td></tr>)}
                       </tbody>
                     </table>
                   </div>
@@ -141,7 +143,7 @@ export default function CustomerQuoteDetail() {
                     ) : (
                       <button onClick={acceptQuote} disabled={!canAccept || accepting} className="mt-6 w-full rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">{accepting ? 'Accepting...' : 'Accept Quote'}</button>
                     )}
-                    <a href={`/api/quotes/${id}/pdf`} target="_blank" className="mt-3 block rounded-xl border border-slate-300 px-5 py-3 text-center text-sm font-semibold text-slate-900 hover:bg-slate-50">View PDF</a>
+                    <p className="mt-3 text-sm">The issued quote PDF is sent to your email. Contact sales@odiscom.com for a copy.</p>
                   </div>
 
                   <div className="rounded-3xl bg-gradient-to-br from-slate-950 to-blue-950 p-6 text-white shadow-sm"><div className="text-lg font-bold">Need a change?</div><p className="mt-2 text-sm leading-6 text-slate-300">Contact Odiscom Supply before accepting if quantities, delivery requirements, alternates, or project timing need revision.</p></div>

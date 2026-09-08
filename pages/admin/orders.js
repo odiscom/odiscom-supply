@@ -1,9 +1,11 @@
+import { totalFor, margins, amount } from '../../lib/pricing'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AdminShell from '../../components/AdminShell'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -30,13 +32,15 @@ export default function OrdersPage() {
   const [items, setItems] = useState([])
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [error,setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadOrders() }, [])
 
   async function loadOrders() {
-    const { data: orderData } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
-    const { data: itemData } = await supabase.from('order_items').select('*')
+    const { data: orderData,error:orderError } = await supabase.from('orders').select('*').order('created_at', { ascending: false })
+    const { data: itemData,error:itemError } = await supabase.from('order_items').select('*')
+    if(orderError || itemError) { setError('Orders could not be loaded. Totals are unavailable.');setLoading(false);return }
     setOrders(orderData || [])
     setItems(itemData || [])
     setLoading(false)
@@ -44,10 +48,10 @@ export default function OrdersPage() {
 
   function totalsForOrder(orderId) {
     const orderItems = items.filter((item) => item.order_id === orderId)
-    const sell = orderItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
-    const cost = orderItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
-    const margin = sell - cost
-    const marginPercent = sell > 0 ? (margin / sell) * 100 : 0
+    const sell = totalFor(orderItems)
+    const cost = totalFor(orderItems,'unit_cost')
+    const margin = margins(sell,cost).grossProfit
+    const marginPercent = margins(sell,cost).margin
     return { sell, cost, margin, marginPercent, itemCount: orderItems.length }
   }
 
@@ -60,12 +64,13 @@ export default function OrdersPage() {
     })
   }, [orders, statusFilter, search])
 
-  const totalValue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0)
-  const totalCost = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
-  const totalMargin = totalValue - totalCost
+  const totalValue = orders.every(order => amount(order.total) !== null) ? orders.reduce((sum,order) => sum+amount(order.total),0) : null
+  const totalCost = orders.every(order => items.some(item => item.order_id === order.id)) ? totalFor(items,'unit_cost') : null
+  const totalMargin = margins(totalValue,totalCost).grossProfit
   const activeOrders = orders.filter((order) => !['completed', 'cancelled'].includes(order.status)).length
-  const marginPercent = totalValue > 0 ? (totalMargin / totalValue) * 100 : 0
+  const marginPercent = margins(totalValue,totalCost).margin
 
+  if(error) return <AdminShell title="Orders"><div role="alert">{error}</div></AdminShell>
   return (
     <AdminShell title="Orders">
       <div className="space-y-6">
@@ -80,7 +85,7 @@ export default function OrdersPage() {
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Orders</div><div className="mt-1 text-2xl font-bold">{orders.length}</div></div>
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Active</div><div className="mt-1 text-2xl font-bold">{activeOrders}</div></div>
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Value</div><div className="mt-1 text-2xl font-bold">{money(totalValue)}</div></div>
-              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin</div><div className="mt-1 text-2xl font-bold text-green-300">{marginPercent.toFixed(1)}%</div></div>
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin</div><div className="mt-1 text-2xl font-bold text-green-300">{marginPercent == null ? 'Not established' : marginPercent.toFixed(1)+'%'}</div></div>
             </div>
           </div>
         </div>
@@ -138,7 +143,7 @@ export default function OrdersPage() {
                         <td className="px-5 py-4 text-right">{totals.itemCount}</td>
                         <td className="px-5 py-4 text-right font-semibold">{money(sell)}</td>
                         <td className="px-5 py-4 text-right">{money(totals.cost)}</td>
-                        <td className="px-5 py-4 text-right font-bold text-green-700">{money(totals.margin)} <span className="text-xs">({totals.marginPercent.toFixed(1)}%)</span></td>
+                        <td className="px-5 py-4 text-right font-bold text-green-700">{money(totals.margin)} <span className="text-xs">{totals.marginPercent == null ? '(Unconfirmed costs)' : '('+totals.marginPercent.toFixed(1)+'%)'}</span></td>
                         <td className="px-5 py-4 text-right"><Link href={`/admin/orders/${order.id}`} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700">Open</Link></td>
                       </tr>
                     )
