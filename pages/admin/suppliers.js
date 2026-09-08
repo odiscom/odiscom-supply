@@ -16,6 +16,13 @@ const emptySupplier = {
   priority: 'normal',
   next_action: '',
   application_url: '',
+  brands: '',
+  government_programs: '',
+  resale_certificate_status: 'needed',
+  credit_status: 'not_started',
+  account_number: '',
+  sales_rep: '',
+  last_contact_at: '',
 }
 
 function Badge({ children, tone = 'blue' }) {
@@ -35,6 +42,7 @@ export default function SuppliersPage() {
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [editingId, setEditingId] = useState(null)
 
   useEffect(() => { loadSuppliers() }, [])
 
@@ -52,11 +60,38 @@ export default function SuppliersPage() {
   async function saveSupplier(e) {
     e.preventDefault()
     setMessage('')
-    const { error } = await supabase.from('suppliers').insert([form])
+    const { id: _id, created_at: _createdAt, ...editableFields } = form
+    const payload = {
+      ...editableFields,
+      last_contact_at: form.last_contact_at ? new Date(form.last_contact_at).toISOString() : null,
+      updated_at: new Date().toISOString(),
+    }
+    const query = editingId
+      ? supabase.from('suppliers').update(payload).eq('id', editingId)
+      : supabase.from('suppliers').insert([payload])
+    const { error } = await query
     if (error) return setMessage(error.message)
     setForm(emptySupplier)
-    setMessage('Supplier added.')
+    setEditingId(null)
+    setMessage(editingId ? 'Supplier updated.' : 'Supplier added.')
     loadSuppliers()
+  }
+
+  function editSupplier(supplier) {
+    setEditingId(supplier.id)
+    setForm({
+      ...emptySupplier,
+      ...supplier,
+      last_contact_at: supplier.last_contact_at
+        ? new Date(supplier.last_contact_at).toISOString().slice(0, 16)
+        : '',
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setForm(emptySupplier)
   }
 
   async function deleteSupplier(supplier) {
@@ -75,7 +110,7 @@ export default function SuppliersPage() {
   const filteredSuppliers = useMemo(() => {
     const query = search.toLowerCase().trim()
     return suppliers.filter((supplier) => {
-      const searchable = [supplier.name, supplier.contact_name, supplier.email, supplier.phone, supplier.website, supplier.product_categories, supplier.payment_terms, supplier.lead_time, supplier.notes].join(' ').toLowerCase()
+      const searchable = [supplier.name, supplier.contact_name, supplier.email, supplier.phone, supplier.website, supplier.product_categories, supplier.brands, supplier.government_programs, supplier.payment_terms, supplier.lead_time, supplier.sales_rep, supplier.notes].join(' ').toLowerCase()
       const matchesSearch = !query || searchable.includes(query)
       const matchesCategory = categoryFilter === 'all' || String(supplier.product_categories || '').toLowerCase().includes(categoryFilter.toLowerCase())
       return matchesSearch && matchesCategory
@@ -84,6 +119,7 @@ export default function SuppliersPage() {
 
   const withEmail = suppliers.filter((supplier) => supplier.email).length
   const withWebsite = suppliers.filter((supplier) => supplier.website).length
+  const approved = suppliers.filter((supplier) => supplier.onboarding_status === 'approved').length
 
   return (
     <AdminShell title="Suppliers">
@@ -96,16 +132,17 @@ export default function SuppliersPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <div className="rounded-3xl border bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Suppliers</div><div className="mt-2 text-3xl font-bold">{suppliers.length}</div></div>
           <div className="rounded-3xl border bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">With Email</div><div className="mt-2 text-3xl font-bold text-blue-700">{withEmail}</div></div>
           <div className="rounded-3xl border bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">With Website</div><div className="mt-2 text-3xl font-bold text-green-700">{withWebsite}</div></div>
           <div className="rounded-3xl border bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Categories</div><div className="mt-2 text-3xl font-bold text-slate-950">{categories.length}</div></div>
+          <div className="rounded-3xl border bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Approved Accounts</div><div className="mt-2 text-3xl font-bold text-green-700">{approved}</div></div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
           <form onSubmit={saveSupplier} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-            <div><h2 className="text-xl font-bold text-slate-950">Add Supplier</h2><p className="mt-1 text-sm text-slate-600">Track cable, connectors, tools, splicers, trailers, mounts, grounding, and infrastructure vendors.</p></div>
+            <div><h2 className="text-xl font-bold text-slate-950">{editingId ? 'Edit Supplier' : 'Add Supplier'}</h2><p className="mt-1 text-sm text-slate-600">Track onboarding, brands, government programs, credit, compliance documents, and contacts.</p></div>
             {message && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{message}</div>}
             <input required value={form.name} onChange={(e) => updateField('name', e.target.value)} placeholder="Supplier name" className="w-full rounded-xl border p-3" />
             <div className="grid grid-cols-2 gap-3"><input value={form.contact_name} onChange={(e) => updateField('contact_name', e.target.value)} placeholder="Contact name" className="w-full rounded-xl border p-3" /><input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="Phone" className="w-full rounded-xl border p-3" /></div>
@@ -113,18 +150,23 @@ export default function SuppliersPage() {
             <input value={form.website} onChange={(e) => updateField('website', e.target.value)} placeholder="Website" className="w-full rounded-xl border p-3" />
             <input value={form.application_url} onChange={(e) => updateField('application_url', e.target.value)} placeholder="Account / partner application URL" className="w-full rounded-xl border p-3" />
             <input value={form.product_categories} onChange={(e) => updateField('product_categories', e.target.value)} placeholder="Product categories, comma separated" className="w-full rounded-xl border p-3" />
+            <input value={form.brands} onChange={(e) => updateField('brands', e.target.value)} placeholder="Brands / manufacturers carried" className="w-full rounded-xl border p-3" />
+            <input value={form.government_programs} onChange={(e) => updateField('government_programs', e.target.value)} placeholder="Government programs: TAA, GSA, SEWP, BABA support..." className="w-full rounded-xl border p-3" />
             <div className="grid grid-cols-2 gap-3"><input value={form.payment_terms} onChange={(e) => updateField('payment_terms', e.target.value)} placeholder="Terms" className="w-full rounded-xl border p-3" /><input value={form.lead_time} onChange={(e) => updateField('lead_time', e.target.value)} placeholder="Lead time" className="w-full rounded-xl border p-3" /></div>
             <div className="grid grid-cols-2 gap-3"><select value={form.priority} onChange={(e) => updateField('priority', e.target.value)} className="w-full rounded-xl border p-3"><option value="critical">Critical</option><option value="high">High</option><option value="normal">Normal</option></select><select value={form.onboarding_status} onChange={(e) => updateField('onboarding_status', e.target.value)} className="w-full rounded-xl border p-3"><option value="target">Target</option><option value="applying">Applying</option><option value="submitted">Submitted</option><option value="approved">Approved</option><option value="declined">Declined</option></select></div>
+            <div className="grid grid-cols-2 gap-3"><select value={form.resale_certificate_status} onChange={(e) => updateField('resale_certificate_status', e.target.value)} className="w-full rounded-xl border p-3"><option value="needed">Resale certificate needed</option><option value="prepared">Prepared</option><option value="submitted">Submitted</option><option value="accepted">Accepted</option><option value="not_required">Not required</option></select><select value={form.credit_status} onChange={(e) => updateField('credit_status', e.target.value)} className="w-full rounded-xl border p-3"><option value="not_started">Credit not started</option><option value="applying">Credit applying</option><option value="submitted">Credit submitted</option><option value="approved">Credit approved</option><option value="prepay">Prepay only</option><option value="declined">Credit declined</option></select></div>
+            <div className="grid grid-cols-2 gap-3"><input value={form.account_number} onChange={(e) => updateField('account_number', e.target.value)} placeholder="Account number" className="w-full rounded-xl border p-3" /><input value={form.sales_rep} onChange={(e) => updateField('sales_rep', e.target.value)} placeholder="Assigned sales rep" className="w-full rounded-xl border p-3" /></div>
+            <label className="block text-sm font-semibold text-slate-700">Last contact<input type="datetime-local" value={form.last_contact_at} onChange={(e) => updateField('last_contact_at', e.target.value)} className="mt-1 w-full rounded-xl border p-3 font-normal" /></label>
             <input value={form.next_action} onChange={(e) => updateField('next_action', e.target.value)} placeholder="Next action" className="w-full rounded-xl border p-3" />
             <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} placeholder="Notes, pricing preferences, account numbers, reps, limitations..." rows="5" className="w-full rounded-xl border p-3" />
-            <button className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700">Add Supplier</button>
+            <div className="flex gap-3"><button className="flex-1 rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700">{editingId ? 'Save Supplier' : 'Add Supplier'}</button>{editingId && <button type="button" onClick={cancelEdit} className="rounded-xl border px-5 py-3 font-semibold text-slate-700">Cancel</button>}</div>
           </form>
 
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5">
               <div className="grid gap-3 md:grid-cols-[1fr_220px]"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search suppliers, contacts, categories, notes..." className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm" /><select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm"><option value="all">All categories</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>
             </div>
-            {loading ? <div className="p-10 text-slate-600">Loading suppliers...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-5 py-4 text-left">Supplier</th><th className="px-5 py-4 text-left">Status</th><th className="px-5 py-4 text-left">Categories</th><th className="px-5 py-4 text-left">Next Action</th><th className="px-5 py-4 text-left">Terms</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody>{filteredSuppliers.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No suppliers found.</td></tr>}{filteredSuppliers.map((supplier) => <tr key={supplier.id} className="border-t align-top hover:bg-slate-50"><td className="px-5 py-4"><div className="font-semibold text-slate-950">{supplier.name}</div><div className="mt-2 flex gap-2"><Badge tone={supplier.priority === 'critical' ? 'amber' : 'blue'}>{supplier.priority || 'normal'}</Badge></div>{supplier.application_url && <a href={supplier.application_url} target="_blank" rel="noreferrer" className="mt-3 block text-xs font-semibold text-blue-700">Open application →</a>}<div className="mt-3 max-w-sm whitespace-pre-wrap text-xs text-slate-500">{supplier.notes || ''}</div></td><td className="px-5 py-4"><Badge tone={supplier.onboarding_status === 'approved' ? 'green' : supplier.onboarding_status === 'submitted' ? 'blue' : 'slate'}>{supplier.onboarding_status || 'target'}</Badge></td><td className="px-5 py-4"><div className="flex max-w-xs flex-wrap gap-2">{String(supplier.product_categories || '-').split(',').map((cat) => cat.trim()).filter(Boolean).map((cat) => <Badge key={cat} tone="slate">{cat}</Badge>)}</div></td><td className="px-5 py-4"><div className="max-w-xs text-sm text-slate-700">{supplier.next_action || '-'}</div></td><td className="px-5 py-4">{supplier.payment_terms || '-'}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => deleteSupplier(supplier)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Delete</button></td></tr>)}</tbody></table></div>}
+            {loading ? <div className="p-10 text-slate-600">Loading suppliers...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-5 py-4 text-left">Supplier</th><th className="px-5 py-4 text-left">Onboarding</th><th className="px-5 py-4 text-left">Products / Brands</th><th className="px-5 py-4 text-left">Government Readiness</th><th className="px-5 py-4 text-left">Next Action</th><th className="px-5 py-4 text-right">Action</th></tr></thead><tbody>{filteredSuppliers.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No suppliers found.</td></tr>}{filteredSuppliers.map((supplier) => <tr key={supplier.id} className="border-t align-top hover:bg-slate-50"><td className="px-5 py-4"><div className="font-semibold text-slate-950">{supplier.name}</div><div className="mt-1 text-xs text-slate-500">{supplier.sales_rep || supplier.contact_name || 'No representative assigned'}</div><div className="mt-2 flex gap-2"><Badge tone={supplier.priority === 'critical' ? 'amber' : 'blue'}>{supplier.priority || 'normal'}</Badge></div>{supplier.application_url && <a href={supplier.application_url} target="_blank" rel="noreferrer" className="mt-3 block text-xs font-semibold text-blue-700">Open application →</a>}</td><td className="px-5 py-4"><Badge tone={supplier.onboarding_status === 'approved' ? 'green' : supplier.onboarding_status === 'submitted' ? 'blue' : 'slate'}>{supplier.onboarding_status || 'target'}</Badge><div className="mt-2 text-xs text-slate-500">Credit: {String(supplier.credit_status || 'not_started').replaceAll('_', ' ')}</div><div className="mt-1 text-xs text-slate-500">Resale: {String(supplier.resale_certificate_status || 'needed').replaceAll('_', ' ')}</div></td><td className="px-5 py-4"><div className="max-w-xs text-xs text-slate-700">{supplier.product_categories || '—'}</div><div className="mt-2 max-w-xs text-xs text-slate-500">{supplier.brands || 'Brands not recorded'}</div></td><td className="px-5 py-4"><div className="max-w-xs text-xs text-slate-700">{supplier.government_programs || 'Not documented'}</div><div className="mt-2 text-xs text-slate-500">{supplier.payment_terms || 'Terms not set'}</div></td><td className="px-5 py-4"><div className="max-w-xs text-sm text-slate-700">{supplier.next_action || '-'}</div>{supplier.last_contact_at && <div className="mt-2 text-xs text-slate-500">Last contact {new Date(supplier.last_contact_at).toLocaleDateString()}</div>}</td><td className="px-5 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => editSupplier(supplier)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">Edit</button><button type="button" onClick={() => deleteSupplier(supplier)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Delete</button></div></td></tr>)}</tbody></table></div>}
           </div>
         </div>
       </div>
