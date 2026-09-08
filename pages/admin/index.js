@@ -1,9 +1,11 @@
+import { totalFor, margins, amount } from '../../lib/pricing'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import AdminShell from '../../components/AdminShell'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -38,6 +40,7 @@ export default function AdminDashboard() {
   const [uploads, setUploads] = useState([])
   const [products, setProducts] = useState([])
   const [suppliers, setSuppliers] = useState([])
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export default function AdminDashboard() {
         supabase.from('suppliers').select('*').order('created_at', { ascending: false }).limit(8),
       ])
 
+      if ([quoteRes,orderRes,itemRes,uploadRes,productRes,supplierRes].some(result => result.error)) { setError('Dashboard data could not be loaded. Totals are unavailable.'); setLoading(false); return }
       setQuotes(quoteRes.data || [])
       setOrders(orderRes.data || [])
       setOrderItems(itemRes.data || [])
@@ -64,14 +68,15 @@ export default function AdminDashboard() {
   }, [])
 
   const openQuotes = quotes.filter((quote) => !['accepted', 'lost'].includes(quote.status)).length
-  const orderTotal = orders.reduce((sum, order) => sum + Number(order.total || 0), 0)
-  const orderCost = orderItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
-  const grossMargin = orderTotal - orderCost
+  const orderTotal = orders.every(order => amount(order.total) !== null) ? orders.reduce((sum,order) => sum+amount(order.total),0) : null
+  const matchingItems = orderItems.filter(item => orders.some(order => order.id === item.order_id))
+  const orderCost = orders.every(order => matchingItems.some(item => item.order_id === order.id)) ? totalFor(matchingItems,'unit_cost') : null
+  const grossMargin = margins(orderTotal,orderCost).grossProfit
   const needsReview = uploads.filter((upload) => ['new', 'reviewing'].includes(upload.status)).length
 
   return (
     <AdminShell title="Dashboard">
-      {loading ? (
+      {error ? <div role="alert">{error}</div> : loading ? (
         <div className="rounded-3xl bg-white p-10 text-slate-600 shadow-sm">Loading dashboard...</div>
       ) : (
         <div className="space-y-6">
@@ -90,15 +95,15 @@ export default function AdminDashboard() {
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Recent Quotes" value={quotes.length} hint="Latest requests loaded" />
-            <MetricCard label="Open Quotes" value={openQuotes} hint="Pending or quoted workflow" tone="amber" />
+            <MetricCard label="Open Recent Quotes" value={openQuotes} hint="Pending or quoted workflow" tone="amber" />
             <MetricCard label="Order Value" value={money(orderTotal)} hint="Recent accepted order value" tone="green" />
-            <MetricCard label="Gross Margin" value={money(grossMargin)} hint="Based on tracked order item costs" tone="green" />
+            <MetricCard label="Gross Margin" value={money(grossMargin)} hint="Recent orders; requires confirmed costs for every line" tone="green" />
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Material Uploads Needing Review</div><div className="mt-2 text-3xl font-bold text-slate-950">{needsReview}</div></div>
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Products in Catalog</div><div className="mt-2 text-3xl font-bold text-slate-950">{products.length}</div></div>
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Suppliers Tracked</div><div className="mt-2 text-3xl font-bold text-slate-950">{suppliers.length}</div></div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Recent Uploads Needing Review</div><div className="mt-2 text-3xl font-bold text-slate-950">{needsReview}</div></div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Recent Catalog Products</div><div className="mt-2 text-3xl font-bold text-slate-950">{products.length}</div></div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><div className="text-sm text-slate-500">Recent Supplier Records</div><div className="mt-2 text-3xl font-bold text-slate-950">{suppliers.length}</div></div>
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">

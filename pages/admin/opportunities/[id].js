@@ -1,3 +1,4 @@
+import { supplierMetrics, lineTotal, margins } from '../../../lib/pricing'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
@@ -5,7 +6,7 @@ import AdminShell from '../../../components/AdminShell'
 import { supabase } from '../../../lib/supabase'
 
 const emptySupplierQuote = {
-  supplier_id: '', status: 'target', response_due_at: '', material_cost: '', freight_cost: '', other_cost: '', sell_price: '', lead_time: '', compliance_status: 'unknown', domestic_status: '', quote_reference: '', quote_url: '', contact_name: '', contact_email: '', notes: '',
+  costs_confirmed: false, supplier_id: '', status: 'target', response_due_at: '', material_cost: '', freight_cost: '', other_cost: '', sell_price: '', lead_time: '', compliance_status: 'unknown', domestic_status: '', quote_reference: '', quote_url: '', contact_name: '', contact_email: '', notes: '',
 }
 
 const emptyItem = {
@@ -49,7 +50,8 @@ export default function HardwareOpportunityDetailPage() {
       supabase.from('opportunity_supplier_quotes').select('*, suppliers(name, application_url)').eq('opportunity_id', id).order('created_at'),
       supabase.from('hardware_opportunity_items').select('*').eq('opportunity_id', id).order('line_number'),
     ])
-    if (opportunityRes.error) setMessage(opportunityRes.error.message)
+    const failed = [opportunityRes,supplierRes,quoteRes,itemRes].find(result => result.error)
+    if (failed) { setMessage('Sourcing data could not be loaded. '+failed.error.message); setLoading(false); return }
     setOpportunity(opportunityRes.data || null)
     setSuppliers(supplierRes.data || [])
     setSupplierQuotes(quoteRes.data || [])
@@ -97,8 +99,8 @@ export default function HardwareOpportunityDetailPage() {
       ...supplierForm,
       response_due_at: supplierForm.response_due_at ? new Date(supplierForm.response_due_at).toISOString() : null,
       material_cost: numberOrNull(supplierForm.material_cost),
-      freight_cost: numberOrNull(supplierForm.freight_cost) || 0,
-      other_cost: numberOrNull(supplierForm.other_cost) || 0,
+      freight_cost: numberOrNull(supplierForm.freight_cost),
+      other_cost: numberOrNull(supplierForm.other_cost),
       sell_price: numberOrNull(supplierForm.sell_price),
       updated_at: new Date().toISOString(),
     }
@@ -139,21 +141,15 @@ export default function HardwareOpportunityDetailPage() {
     if (!error) loadData()
   }
 
-  const quoteMetrics = useMemo(() => supplierQuotes.map((quote) => {
-    const totalCost = Number(quote.material_cost || 0) + Number(quote.freight_cost || 0) + Number(quote.other_cost || 0)
-    const sellPrice = Number(quote.sell_price || 0)
-    const grossProfit = sellPrice - totalCost
-    const margin = sellPrice > 0 ? (grossProfit / sellPrice) * 100 : 0
-    return { ...quote, totalCost, grossProfit, margin }
-  }), [supplierQuotes])
+  const quoteMetrics = useMemo(() => supplierQuotes.map(supplierMetrics), [supplierQuotes])
 
-  const bestReceived = quoteMetrics.filter((quote) => quote.status === 'received' && quote.material_cost !== null).sort((a, b) => a.totalCost - b.totalCost)[0]
+  const bestReceived = quoteMetrics.filter((quote) => quote.status === 'received' && quote.totalCost !== null).sort((a, b) => a.totalCost - b.totalCost)[0]
   const sites = useMemo(() => [...new Set(items.map((item) => item.site_name).filter(Boolean))].sort(), [items])
   const visibleItems = useMemo(() => siteFilter === 'all' ? items : items.filter((item) => item.site_name === siteFilter), [items, siteFilter])
   const unresolvedQuantities = useMemo(() => items.filter((item) => item.quantity_status !== 'verified').length, [items])
 
   if (loading) return <AdminShell title="Hardware Bid"><div className="rounded-3xl bg-white p-10 text-slate-600">Loading sourcing workspace...</div></AdminShell>
-  if (!opportunity) return <AdminShell title="Hardware Bid"><div className="rounded-3xl bg-white p-10 text-slate-600">Opportunity not found.</div></AdminShell>
+  if (!opportunity) return <AdminShell title="Hardware Bid"><div role="alert">{message || 'Opportunity not found.'}</div></AdminShell>
 
   return (
     <AdminShell title={opportunity.solicitation_number}>
@@ -167,7 +163,7 @@ export default function HardwareOpportunityDetailPage() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Deadline</div><div className="mt-2 text-xl font-bold">{opportunity.response_deadline ? new Date(opportunity.response_deadline).toLocaleString() : 'Not set'}</div></div>
-          <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Suppliers Quoting</div><div className="mt-2 text-3xl font-bold text-blue-700">{supplierQuotes.length}</div></div>
+          <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Supplier Targets / Records</div><div className="mt-2 text-3xl font-bold text-blue-700">{supplierQuotes.length}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">BOM Lines</div><div className="mt-2 text-3xl font-bold">{items.length}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Quantity Clarifications</div><div className={`mt-2 text-3xl font-bold ${unresolvedQuantities ? 'text-amber-700' : 'text-green-700'}`}>{unresolvedQuantities}</div></div>
           <div className="rounded-3xl border bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">Best Received Cost</div><div className="mt-2 text-2xl font-bold text-green-700">{bestReceived ? money(bestReceived.totalCost) : '—'}</div></div>
@@ -191,7 +187,9 @@ export default function HardwareOpportunityDetailPage() {
         </form>
 
         <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-          <form onSubmit={saveSupplierQuote} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm text-slate-600">Statuses record staff activity; changing a status does not send an RFQ. Mark costs confirmed only after checking a supplier quote including freight and other costs.</p>
+        <form onSubmit={saveSupplierQuote} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+<label className="block p-3 text-sm"><input type="checkbox" checked={supplierForm.costs_confirmed} onChange={e => setSupplierForm({...supplierForm,costs_confirmed:e.target.checked})} /> Material, freight, and other costs confirmed from supplier quote</label>
             <div><h3 className="text-xl font-bold text-slate-950">Add supplier to this bid</h3><p className="mt-1 text-sm text-slate-600">Record supplier RFQ status, landed cost, sell price, lead time, and compliance.</p></div>
             <select required value={supplierForm.supplier_id} onChange={(event) => setSupplierForm({ ...supplierForm, supplier_id: event.target.value })} className="w-full rounded-xl border p-3"><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select>
             <div className="grid grid-cols-2 gap-3"><select value={supplierForm.status} onChange={(event) => setSupplierForm({ ...supplierForm, status: event.target.value })} className="rounded-xl border p-3"><option value="target">Target</option><option value="requested">RFQ requested</option><option value="received">Quote received</option><option value="declined">Declined</option><option value="unresponsive">Unresponsive</option><option value="selected">Selected</option></select><select value={supplierForm.compliance_status} onChange={(event) => setSupplierForm({ ...supplierForm, compliance_status: event.target.value })} className="rounded-xl border p-3"><option value="unknown">Compliance unknown</option><option value="reviewing">Reviewing</option><option value="compliant">Compliant</option><option value="exceptions">Exceptions</option><option value="noncompliant">Noncompliant</option></select></div>
@@ -207,7 +205,7 @@ export default function HardwareOpportunityDetailPage() {
 
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b p-5"><h3 className="font-bold text-slate-950">Supplier pricing matrix</h3><p className="mt-1 text-sm text-slate-500">Compare landed acquisition cost, proposed sell price, gross profit, margin, and compliance.</p></div>
-            <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3 text-left">Supplier</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Landed cost</th><th className="px-4 py-3 text-right">Sell price</th><th className="px-4 py-3 text-right">GP / Margin</th><th className="px-4 py-3 text-left">Compliance</th></tr></thead><tbody>{quoteMetrics.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No suppliers linked yet.</td></tr>}{quoteMetrics.map((quote) => <tr key={quote.id} className="border-t align-top"><td className="px-4 py-4"><div className="font-semibold text-slate-950">{quote.suppliers?.name}</div><div className="mt-1 text-xs text-slate-500">{quote.lead_time || 'Lead time not recorded'}</div></td><td className="px-4 py-4"><select value={quote.status} onChange={(event) => updateSupplierQuote(quote, 'status', event.target.value)} className="rounded-lg border p-2 text-xs"><option value="target">Target</option><option value="requested">Requested</option><option value="received">Received</option><option value="declined">Declined</option><option value="unresponsive">Unresponsive</option><option value="selected">Selected</option></select></td><td className="px-4 py-4 text-right font-semibold">{money(quote.totalCost)}</td><td className="px-4 py-4 text-right">{money(quote.sell_price)}</td><td className="px-4 py-4 text-right"><div className={quote.grossProfit > 0 ? 'font-bold text-green-700' : 'font-bold text-slate-600'}>{quote.sell_price ? money(quote.grossProfit) : '—'}</div><div className="text-xs text-slate-500">{quote.sell_price ? `${quote.margin.toFixed(1)}%` : ''}</div></td><td className="px-4 py-4"><Badge tone={quote.compliance_status === 'compliant' ? 'green' : quote.compliance_status === 'noncompliant' ? 'red' : 'amber'}>{quote.compliance_status}</Badge><div className="mt-2 max-w-xs text-xs text-slate-500">{quote.domestic_status || ''}</div></td></tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-4 py-3 text-left">Supplier</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3 text-right">Landed cost</th><th className="px-4 py-3 text-right">Sell price</th><th className="px-4 py-3 text-right">GP / Margin</th><th className="px-4 py-3 text-left">Compliance</th></tr></thead><tbody>{quoteMetrics.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No suppliers linked yet.</td></tr>}{quoteMetrics.map((quote) => <tr key={quote.id} className="border-t align-top"><td className="px-4 py-4"><div className="font-semibold text-slate-950">{quote.suppliers?.name}</div><div className="mt-1 text-xs text-slate-500">{quote.lead_time || 'Lead time not recorded'}</div></td><td className="px-4 py-4"><select value={quote.status} onChange={(event) => updateSupplierQuote(quote, 'status', event.target.value)} className="rounded-lg border p-2 text-xs"><option value="target">Target</option><option value="requested">Requested</option><option value="received">Received</option><option value="declined">Declined</option><option value="unresponsive">Unresponsive</option><option value="selected">Selected</option></select></td><td className="px-4 py-4 text-right font-semibold">{money(quote.totalCost)}</td><td className="px-4 py-4 text-right">{money(quote.sell_price)}</td><td className="px-4 py-4 text-right"><div className={quote.grossProfit > 0 ? 'font-bold text-green-700' : 'font-bold text-slate-600'}>{quote.sell_price ? money(quote.grossProfit) : '—'}</div><div className="text-xs text-slate-500">{quote.sell_price ? `${quote.margin == null ? 'Not established' : quote.margin.toFixed(1)}%` : ''}</div></td><td className="px-4 py-4"><Badge tone={quote.compliance_status === 'compliant' ? 'green' : quote.compliance_status === 'noncompliant' ? 'red' : 'amber'}>{quote.compliance_status}</Badge><div className="mt-2 max-w-xs text-xs text-slate-500">{quote.domestic_status || ''}</div></td></tr>)}</tbody></table></div>
           </div>
         </div>
 

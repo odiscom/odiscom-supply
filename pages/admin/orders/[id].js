@@ -1,9 +1,11 @@
+import { totalFor, lineTotal, margins, amount } from '../../../lib/pricing'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import AdminShell from '../../../components/AdminShell'
 import { supabase } from '../../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -54,7 +56,8 @@ export default function OrderDetail() {
       return
     }
 
-    const { data: itemsData } = await supabase.from('order_items').select('*').eq('order_id', id).order('created_at', { ascending: true })
+    const { data: itemsData,error:itemsError } = await supabase.from('order_items').select('*').eq('order_id', id).order('created_at', { ascending: true })
+    if(itemsError) {setOrder(orderData);setItems([]);setMessage('Order items could not be loaded. Margin is unavailable.');setLoading(false);return}
     setOrder(orderData)
     setItems(itemsData || [])
     setLoading(false)
@@ -85,10 +88,10 @@ export default function OrderDetail() {
     )
   }
 
-  const sellTotal = Number(order.total || items.reduce((sum, item) => sum + Number(item.total_price || 0), 0))
-  const costTotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
-  const marginTotal = sellTotal - costTotal
-  const marginPercent = sellTotal > 0 ? (marginTotal / sellTotal) * 100 : 0
+  const sellTotal = amount(order.total) ?? totalFor(items)
+  const costTotal = totalFor(items,'unit_cost')
+  const marginTotal = margins(sellTotal,costTotal).grossProfit
+  const marginPercent = margins(sellTotal,costTotal).margin
 
   return (
     <AdminShell title={order.order_number}>
@@ -108,7 +111,7 @@ export default function OrderDetail() {
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Order Total</div><div className="mt-1 text-xl font-bold">{money(sellTotal)}</div></div>
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Estimated Cost</div><div className="mt-1 text-xl font-bold">{money(costTotal)}</div></div>
               <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Gross Margin</div><div className="mt-1 text-xl font-bold text-green-300">{money(marginTotal)}</div></div>
-              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin %</div><div className="mt-1 text-xl font-bold text-green-300">{marginPercent.toFixed(1)}%</div></div>
+              <div className="rounded-2xl bg-white/10 p-4"><div className="text-xs text-slate-300">Margin %</div><div className="mt-1 text-xl font-bold text-green-300">{marginPercent == null ? 'Not established' : marginPercent.toFixed(1) + '%'}</div></div>
             </div>
           </div>
         </div>
@@ -126,17 +129,17 @@ export default function OrderDetail() {
             </div>
 
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-6 py-5"><h2 className="text-xl font-bold text-slate-950">Order Items</h2><p className="mt-1 text-sm text-slate-600">Supplier, cost, sell, and margin detail for fulfillment.</p></div>
+              <div className="border-b border-slate-200 px-6 py-5"><h2 className="text-xl font-bold text-slate-950">Order Items</h2>{!items.length && <p role="alert">This order has no saved line items. Review its originating quote before fulfillment.</p>}<p className="mt-1 text-sm text-slate-600">Supplier, cost, sell, and margin detail for fulfillment.</p></div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-50 text-slate-600"><tr><th className="p-4 text-left">Product</th><th className="p-4 text-left">Supplier</th><th className="p-4 text-right">Qty</th><th className="p-4 text-right">Sell</th><th className="p-4 text-right">Cost</th><th className="p-4 text-right">Margin</th><th className="p-4 text-right">Line Total</th></tr></thead>
                   <tbody>
                     {items.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-slate-500">No order items.</td></tr>}
                     {items.map((item) => {
-                      const lineCost = Number(item.quantity || 0) * Number(item.unit_cost || 0)
-                      const lineTotal = Number(item.total_price || 0)
-                      const lineMargin = lineTotal - lineCost
-                      return <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4">{item.supplier_name || '-'}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(item.unit_price)}</td><td className="p-4 text-right">{money(item.unit_cost)}</td><td className="p-4 text-right font-bold text-green-700">{money(lineMargin)}</td><td className="p-4 text-right font-bold">{money(lineTotal)}</td></tr>
+                      const lineCost = item.cost_confirmed ? lineTotal(item,'unit_cost') : null
+                      const itemSellTotal = lineTotal(item)
+                      const lineMargin = margins(itemSellTotal,lineCost).grossProfit
+                      return <tr key={item.id} className="border-t border-slate-200"><td className="p-4 font-semibold text-slate-950">{item.product_name}</td><td className="p-4">{item.supplier_name || '-'}</td><td className="p-4 text-right">{item.quantity}</td><td className="p-4 text-right">{money(item.unit_price)}</td><td className="p-4 text-right">{money(item.cost_confirmed ? item.unit_cost : null)}</td><td className="p-4 text-right font-bold text-green-700">{money(lineMargin)}</td><td className="p-4 text-right font-bold">{money(itemSellTotal)}</td></tr>
                     })}
                   </tbody>
                 </table>

@@ -11,7 +11,8 @@ function buildItemSummary(items = []) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
-  const { name, company, email, phone, details, selectedItems = [] } = req.body
+  const { name, company, email, phone, details, selectedItems = [] } = req.body || {}
+  if (!Array.isArray(selectedItems) || selectedItems.length > 500 || selectedItems.some(item => !item || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) return res.status(400).json({success:false,message:'Provide valid requested quantities.'})
 
   if (!name || !company || !email) {
     return res.status(400).json({ success: false, message: 'Name, company, and email are required.' })
@@ -40,17 +41,19 @@ export default async function handler(req, res) {
         product_name: item.product_name || item.name || 'Catalog Item',
         quantity: Number(item.quantity || 1),
         unit: item.unit || 'each',
-        unit_price: 0,
-        unit_cost: 0,
+        unit_price: null,
+        unit_cost: null,
         supplier_name: null,
         notes: item.notes || null,
       }))
     )
 
-    if (itemError) return res.status(500).json({ success: false, error: itemError.message })
+    if (itemError) return res.status(500).json({ success:false, quoteId, requestSaved:true, message:'Your request was saved, but its line items need staff review. Contact sales@odiscom.com with this quote number; do not resubmit.' })
   }
 
+  let notificationStatus = 'not_configured'
   if (process.env.SMTP_HOST) {
+   try {
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT || 587),
@@ -58,18 +61,20 @@ export default async function handler(req, res) {
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     })
     await transporter.sendMail({
-      from: `Odiscom Supply <${process.env.SMTP_USER}>`,
+      from: 'Odiscom Supply <sales@odiscom.com>',
       to: process.env.NOTIFY_EMAIL,
       subject: `New Quote Request: ${quoteId}`,
       text: `Company: ${company}\nName: ${name}\nEmail: ${email}\nPhone: ${phone || 'N/A'}\n\nDetails:\n${quoteDetails}`
     })
     await transporter.sendMail({
-      from: `Odiscom Supply <${process.env.SMTP_USER}>`,
+      from: 'Odiscom Supply <sales@odiscom.com>',
       to: email,
       subject: `Quote Request Received (${quoteId})`,
       text: `Thanks for your request. Your quote ID is ${quoteId}. We will review the selected materials and contact you shortly.`
     })
+    notificationStatus = 'sent'
+   } catch { notificationStatus = 'delivery_unconfirmed' }
   }
 
-  return res.status(200).json({ success: true, quoteId })
+  return res.status(200).json({ success: true, quoteId, notificationStatus })
 }

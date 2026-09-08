@@ -1,8 +1,10 @@
+import { amount, margins } from '../../lib/pricing'
 import { useEffect, useMemo, useState } from 'react'
 import SupplierShell from '../../components/SupplierShell'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -17,8 +19,8 @@ const emptyProduct = {
   category: '',
   manufacturer: '',
   description: '',
-  price: 0,
-  cost: 0,
+  price: '',
+  cost: '',
   unit: 'each',
   lead_time: '',
   status: 'supplier_review',
@@ -68,7 +70,7 @@ export default function SupplierProducts() {
     const cleanSlug = slugify(form.slug || form.name || form.sku)
     if (!cleanSlug) return setMessage('Product needs a valid slug.')
 
-    const { error } = await supabase.from('products').insert([{ ...form, slug: cleanSlug, supplier_name: supplier.name, manufacturer: form.manufacturer || supplier.name, status: 'supplier_review', price: Number(form.price || 0), cost: Number(form.cost || 0) }])
+    const { error } = await supabase.from('products').insert([{ ...form, slug: cleanSlug, supplier_name: supplier.name, manufacturer: form.manufacturer || supplier.name, status: 'supplier_review', price: amount(form.price), cost: amount(form.cost) }])
     if (error) return setMessage(error.message)
     setForm(emptyProduct)
     setMessage('Product submitted for Odiscom review.')
@@ -137,7 +139,7 @@ function ProductRow({ product, onUpdate }) {
       <td className="px-5 py-4 text-right"><input type="number" value={cost} onChange={(e) => setCost(e.target.value)} className="w-28 rounded-lg border px-3 py-2 text-right text-sm" /><div className="mt-1 text-xs text-slate-500">Current {money(product.cost)}</div></td>
       <td className="px-5 py-4"><input value={leadTime} onChange={(e) => setLeadTime(e.target.value)} className="w-40 rounded-lg border px-3 py-2 text-sm" /></td>
       <td className="px-5 py-4"><select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-lg border px-3 py-2 text-sm"><option value="supplier_review">Review</option><option value="active">Available</option><option value="draft">Unavailable</option></select></td>
-      <td className="px-5 py-4 text-right"><button type="button" onClick={() => onUpdate(product, { cost: Number(cost || 0), lead_time: leadTime, supplier_status: status })} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Submit Update</button></td>
+      <td className="px-5 py-4 text-right"><button type="button" onClick={() => onUpdate(product, { cost: amount(cost), lead_time: leadTime, supplier_status: status })} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white">Submit Update</button></td>
     </tr>
   )
 }

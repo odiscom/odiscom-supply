@@ -6,14 +6,21 @@ import Footer from '../../../components/Footer'
 export default function AcceptQuotePage() {
   const router = useRouter()
   const { id } = router.query
+  const [busy,setBusy] = useState(false)
+  const [message,setMessage] = useState('')
   const [done, setDone] = useState(false)
   const [orderNumber, setOrderNumber] = useState(null)
 
   async function acceptQuote() {
-    const res = await fetch(`/api/quotes/${id}/accept`, { method: 'POST' })
-    const data = await res.json()
-    if (data.success) { setDone(true); setOrderNumber(data.orderNumber) }
-    else alert(data.message || 'Error accepting quote')
+    if(busy || !id) return
+    setBusy(true);setMessage('')
+    try {
+      const res = await fetch(`/api/quotes/${id}/accept`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.success || !data.orderNumber) throw new Error(data.message || 'Order was not confirmed.')
+      setDone(true);setOrderNumber(data.orderNumber)
+    } catch(error) { setMessage(error.message || 'Acceptance could not be confirmed. Contact sales@odiscom.com before retrying.') }
+    finally {setBusy(false)}
   }
 
   return (
@@ -31,7 +38,7 @@ export default function AcceptQuotePage() {
             <>
               <h1 className="text-3xl font-bold mb-4">Accept Your Quote</h1>
               <p className="text-gray-600 mb-6">Click below to approve this quote and begin fulfillment.</p>
-              <button onClick={acceptQuote} className="bg-blue-600 text-white px-6 py-3 rounded font-semibold">Accept Quote</button>
+              <p role="status">{message}</p><button disabled={busy || !id} onClick={acceptQuote} className="bg-blue-600 text-white px-6 py-3 rounded font-semibold">Accept Quote</button>
             </>
           )}
         </div>

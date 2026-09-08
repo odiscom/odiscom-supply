@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -88,7 +89,7 @@ export default function ProductPage() {
           <aside className="space-y-6">
             <div className="sticky top-24 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">Project pricing</div>
-              <div className="mt-3 text-3xl font-bold text-slate-950">{Number(product.price || 0) > 0 ? money(product.price) : 'Request Quote'}</div>
+              <div className="mt-3 text-3xl font-bold text-slate-950">Request Quote</div>
               <p className="mt-3 text-sm leading-6 text-slate-600">Final pricing is reviewed based on quantity, freight, lead time, sourcing options, and project requirements.</p>
               <div className="mt-6 space-y-3">
                 {product.spec_sheet_url && <a href={product.spec_sheet_url} target="_blank" className="block rounded-xl bg-slate-100 px-5 py-3 text-center text-sm font-semibold text-slate-950 hover:bg-slate-200">View Spec Sheet</a>}

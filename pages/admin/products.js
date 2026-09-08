@@ -1,9 +1,11 @@
+import { amount, margins } from '../../lib/pricing'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import AdminShell from '../../components/AdminShell'
 import { supabase } from '../../lib/supabase'
 
 function money(value) {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return 'Not priced'
   return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -34,7 +36,7 @@ function Field({ label, hint, children }) {
 const inputClass = 'w-full rounded-xl border border-slate-300 bg-white p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
 
 const emptyProduct = {
-  name: '', sku: '', slug: '', category: '', manufacturer: '', description: '', price: 0, cost: 0, unit: 'each', lead_time: '', status: 'active', image_url: '', spec_sheet_url: '',
+  name: '', sku: '', slug: '', category: '', manufacturer: '', description: '', price: '', cost: '', unit: 'each', lead_time: '', status: 'active', image_url: '', spec_sheet_url: '',
 }
 
 export default function Products() {
@@ -67,7 +69,7 @@ export default function Products() {
     setMessage('')
     const productSlug = slugify(form.slug || form.name || form.sku)
     if (!productSlug) return setMessage('Product needs a valid URL slug.')
-    const { error } = await supabase.from('products').insert([{ ...form, slug: productSlug, price: Number(form.price || 0), cost: Number(form.cost || 0) }])
+    const { error } = await supabase.from('products').insert([{ ...form, slug: productSlug, price: amount(form.price), cost: amount(form.cost) }])
     if (error) return setMessage(error.message)
     setForm(emptyProduct)
     setMessage('Product added.')
@@ -108,7 +110,8 @@ export default function Products() {
 
   const activeCount = products.filter((p) => p.status === 'active').length
   const draftCount = products.filter((p) => p.status === 'draft').length
-  const avgMargin = products.length ? products.reduce((sum, p) => sum + (Number(p.price || 0) - Number(p.cost || 0)), 0) / products.length : 0
+  const completeProducts = products.filter(p => amount(p.price) !== null && Number(p.cost)>0)
+  const avgMargin = completeProducts.length ? completeProducts.reduce((sum,p)=>sum+amount(p.price)-amount(p.cost),0)/completeProducts.length : null
 
   return (
     <AdminShell title="Products">
@@ -154,7 +157,7 @@ export default function Products() {
 
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5"><div className="grid gap-3 md:grid-cols-[1fr_200px]"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products, SKUs, slugs, categories..." className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm" /><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm"><option value="all">All statuses</option><option value="active">Active</option><option value="draft">Draft</option></select></div></div>
-            {loading ? <div className="p-10 text-slate-600">Loading products...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-5 py-4 text-left">Product</th><th className="px-5 py-4 text-left">Category</th><th className="px-5 py-4 text-right">Internal Sell</th><th className="px-5 py-4 text-right">Unit Cost</th><th className="px-5 py-4 text-right">Margin</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody>{filteredProducts.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No products found.</td></tr>}{filteredProducts.map((product) => { const margin = Number(product.price || 0) - Number(product.cost || 0); const badSlug = /[^a-z0-9-]/.test(product.slug || ''); return <tr key={product.id} className="border-t align-top hover:bg-slate-50"><td className="px-5 py-4"><div className="font-semibold text-slate-950">{product.name}</div><div className="mt-1 text-xs text-slate-500">{product.sku || 'No SKU'} · {product.manufacturer || 'No manufacturer'} · {product.unit || 'each'}</div><div className={`mt-1 text-xs ${badSlug ? 'text-red-600' : 'text-blue-700'}`}>/{product.slug || product.id}</div></td><td className="px-5 py-4"><div>{product.category || '-'}</div><div className="mt-2"><Badge tone={product.status === 'active' ? 'green' : 'amber'}>{product.status || 'active'}</Badge></div></td><td className="px-5 py-4 text-right font-semibold">{money(product.price)}</td><td className="px-5 py-4 text-right">{money(product.cost)}</td><td className="px-5 py-4 text-right font-bold text-green-700">{money(margin)}</td><td className="px-5 py-4 text-right"><div className="flex flex-col gap-2"><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} className="rounded-lg bg-blue-600 px-3 py-2 text-center text-xs font-semibold text-white">View</Link><button type="button" onClick={() => updateStatus(product, product.status === 'active' ? 'draft' : 'active')} className="rounded-lg border px-3 py-2 text-xs font-semibold">{product.status === 'active' ? 'Draft' : 'Publish'}</button>{badSlug && <button type="button" onClick={() => fixSlug(product)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Fix Slug</button>}<button type="button" onClick={() => deleteProduct(product)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Delete</button></div></td></tr> })}</tbody></table></div>}
+            {loading ? <div className="p-10 text-slate-600">Loading products...</div> : <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-slate-50 text-slate-600"><tr><th className="px-5 py-4 text-left">Product</th><th className="px-5 py-4 text-left">Category</th><th className="px-5 py-4 text-right">Internal Sell</th><th className="px-5 py-4 text-right">Unit Cost</th><th className="px-5 py-4 text-right">Margin</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody>{filteredProducts.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No products found.</td></tr>}{filteredProducts.map((product) => { const margin = margins(amount(product.price),Number(product.cost)>0 ? amount(product.cost) : null).grossProfit; const badSlug = /[^a-z0-9-]/.test(product.slug || ''); return <tr key={product.id} className="border-t align-top hover:bg-slate-50"><td className="px-5 py-4"><div className="font-semibold text-slate-950">{product.name}</div><div className="mt-1 text-xs text-slate-500">{product.sku || 'No SKU'} · {product.manufacturer || 'No manufacturer'} · {product.unit || 'each'}</div><div className={`mt-1 text-xs ${badSlug ? 'text-red-600' : 'text-blue-700'}`}>/{product.slug || product.id}</div></td><td className="px-5 py-4"><div>{product.category || '-'}</div><div className="mt-2"><Badge tone={product.status === 'active' ? 'green' : 'amber'}>{product.status || 'active'}</Badge></div></td><td className="px-5 py-4 text-right font-semibold">{money(product.price)}</td><td className="px-5 py-4 text-right">{money(product.cost)}</td><td className="px-5 py-4 text-right font-bold text-green-700">{money(margin)}</td><td className="px-5 py-4 text-right"><div className="flex flex-col gap-2"><Link href={`/product/${encodeURIComponent(product.slug || product.id)}`} className="rounded-lg bg-blue-600 px-3 py-2 text-center text-xs font-semibold text-white">View</Link><button type="button" onClick={() => updateStatus(product, product.status === 'active' ? 'draft' : 'active')} className="rounded-lg border px-3 py-2 text-xs font-semibold">{product.status === 'active' ? 'Draft' : 'Publish'}</button>{badSlug && <button type="button" onClick={() => fixSlug(product)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">Fix Slug</button>}<button type="button" onClick={() => deleteProduct(product)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">Delete</button></div></td></tr> })}</tbody></table></div>}
           </div>
         </div>
       </div>
