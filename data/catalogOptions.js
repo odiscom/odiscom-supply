@@ -45,7 +45,7 @@ export function getCatalogItemMeta(category = '', name = '') {
     return {
       unit: 'assembly',
       lengthOptions: standardPreTerminatedLengths,
-      lengthLabel: `Available standard lengths: ${standardPreTerminatedLengths.join(', ')}`,
+      lengthLabel: `Common requested lengths: ${standardPreTerminatedLengths.join(', ')}`,
     }
   }
 
@@ -53,14 +53,14 @@ export function getCatalogItemMeta(category = '', name = '') {
     return {
       unit: 'spool/reel',
       lengthOptions: standardDropCableLengths,
-      lengthLabel: `Available standard lengths: ${standardDropCableLengths.join(', ')}`,
+      lengthLabel: `Common requested lengths: ${standardDropCableLengths.join(', ')}`,
     }
   }
 
   return {
     unit: 'reel',
     lengthOptions: standardFiberCableLengths,
-    lengthLabel: `Available standard reel lengths: ${standardFiberCableLengths.join(', ')}`,
+    lengthLabel: `Common requested reel lengths: ${standardFiberCableLengths.join(', ')}`,
   }
 }
 
